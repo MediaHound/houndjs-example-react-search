@@ -1,0 +1,10 @@
+.idea
+.DS_Store
+\#.DS_Store#
+node_modules
+*.swp
+*.swo
+*.bak
+*.log
+#.DS_Store#
+src/bundle.js
