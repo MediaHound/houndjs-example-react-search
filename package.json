@@ -1,11 +1,11 @@
 {
   "name": "houndjs-example-react-search",
   "version": "1.0.0",
-  "description": "",
+  "description": "React Powered Movie Search",
   "private": true,
   "scripts": {},
-  "author": "Dustin Bachrach <ahdustin@gmail.com>",
-  "license": "MIT",
+  "author": "Dustin Bachrach <dustin@mediahound.com>",
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=5.0.0"
   },
