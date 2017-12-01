@@ -1,5 +1,172 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+(function (global){
+/*! http://mths.be/base64 v0.1.0 by @mathias | MIT license */
+;(function(root) {
 
+	// Detect free variables `exports`.
+	var freeExports = typeof exports == 'object' && exports;
+
+	// Detect free variable `module`.
+	var freeModule = typeof module == 'object' && module &&
+		module.exports == freeExports && module;
+
+	// Detect free variable `global`, from Node.js or Browserified code, and use
+	// it as `root`.
+	var freeGlobal = typeof global == 'object' && global;
+	if (freeGlobal.global === freeGlobal || freeGlobal.window === freeGlobal) {
+		root = freeGlobal;
+	}
+
+	/*--------------------------------------------------------------------------*/
+
+	var InvalidCharacterError = function(message) {
+		this.message = message;
+	};
+	InvalidCharacterError.prototype = new Error;
+	InvalidCharacterError.prototype.name = 'InvalidCharacterError';
+
+	var error = function(message) {
+		// Note: the error messages used throughout this file match those used by
+		// the native `atob`/`btoa` implementation in Chromium.
+		throw new InvalidCharacterError(message);
+	};
+
+	var TABLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+	// http://whatwg.org/html/common-microsyntaxes.html#space-character
+	var REGEX_SPACE_CHARACTERS = /[\t\n\f\r ]/g;
+
+	// `decode` is designed to be fully compatible with `atob` as described in the
+	// HTML Standard. http://whatwg.org/html/webappapis.html#dom-windowbase64-atob
+	// The optimized base64-decoding algorithm used is based on @atk’s excellent
+	// implementation. https://gist.github.com/atk/1020396
+	var decode = function(input) {
+		input = String(input)
+			.replace(REGEX_SPACE_CHARACTERS, '');
+		var length = input.length;
+		if (length % 4 == 0) {
+			input = input.replace(/==?$/, '');
+			length = input.length;
+		}
+		if (
+			length % 4 == 1 ||
+			// http://whatwg.org/C#alphanumeric-ascii-characters
+			/[^+a-zA-Z0-9/]/.test(input)
+		) {
+			error(
+				'Invalid character: the string to be decoded is not correctly encoded.'
+			);
+		}
+		var bitCounter = 0;
+		var bitStorage;
+		var buffer;
+		var output = '';
+		var position = -1;
+		while (++position < length) {
+			buffer = TABLE.indexOf(input.charAt(position));
+			bitStorage = bitCounter % 4 ? bitStorage * 64 + buffer : buffer;
+			// Unless this is the first of a group of 4 characters…
+			if (bitCounter++ % 4) {
+				// …convert the first 8 bits to a single ASCII character.
+				output += String.fromCharCode(
+					0xFF & bitStorage >> (-2 * bitCounter & 6)
+				);
+			}
+		}
+		return output;
+	};
+
+	// `encode` is designed to be fully compatible with `btoa` as described in the
+	// HTML Standard: http://whatwg.org/html/webappapis.html#dom-windowbase64-btoa
+	var encode = function(input) {
+		input = String(input);
+		if (/[^\0-\xFF]/.test(input)) {
+			// Note: no need to special-case astral symbols here, as surrogates are
+			// matched, and the input is supposed to only contain ASCII anyway.
+			error(
+				'The string to be encoded contains characters outside of the ' +
+				'Latin1 range.'
+			);
+		}
+		var padding = input.length % 3;
+		var output = '';
+		var position = -1;
+		var a;
+		var b;
+		var c;
+		var d;
+		var buffer;
+		// Make sure any padding is handled outside of the loop.
+		var length = input.length - padding;
+
+		while (++position < length) {
+			// Read three bytes, i.e. 24 bits.
+			a = input.charCodeAt(position) << 16;
+			b = input.charCodeAt(++position) << 8;
+			c = input.charCodeAt(++position);
+			buffer = a + b + c;
+			// Turn the 24 bits into four chunks of 6 bits each, and append the
+			// matching character for each of them to the output.
+			output += (
+				TABLE.charAt(buffer >> 18 & 0x3F) +
+				TABLE.charAt(buffer >> 12 & 0x3F) +
+				TABLE.charAt(buffer >> 6 & 0x3F) +
+				TABLE.charAt(buffer & 0x3F)
+			);
+		}
+
+		if (padding == 2) {
+			a = input.charCodeAt(position) << 8;
+			b = input.charCodeAt(++position);
+			buffer = a + b;
+			output += (
+				TABLE.charAt(buffer >> 10) +
+				TABLE.charAt((buffer >> 4) & 0x3F) +
+				TABLE.charAt((buffer << 2) & 0x3F) +
+				'='
+			);
+		} else if (padding == 1) {
+			buffer = input.charCodeAt(position);
+			output += (
+				TABLE.charAt(buffer >> 2) +
+				TABLE.charAt((buffer << 4) & 0x3F) +
+				'=='
+			);
+		}
+
+		return output;
+	};
+
+	var base64 = {
+		'encode': encode,
+		'decode': decode,
+		'version': '0.1.0'
+	};
+
+	// Some AMD build optimizers, like r.js, check for specific condition patterns
+	// like the following:
+	if (
+		typeof define == 'function' &&
+		typeof define.amd == 'object' &&
+		define.amd
+	) {
+		define(function() {
+			return base64;
+		});
+	}	else if (freeExports && !freeExports.nodeType) {
+		if (freeModule) { // in Node.js or RingoJS v0.8.0+
+			freeModule.exports = base64;
+		} else { // in Narwhal or RingoJS v0.7.0-
+			for (var key in base64) {
+				base64.hasOwnProperty(key) && (freeExports[key] = base64[key]);
+			}
+		}
+	} else { // in Rhino or a web browser
+		root.base64 = base64;
+	}
+
+}(this));
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],2:[function(require,module,exports){
 (function (process){
 /**
@@ -87,7 +254,7 @@ var EventListener = {
 
 module.exports = EventListener;
 }).call(this,require('_process'))
-},{"./emptyFunction":9,"_process":114}],3:[function(require,module,exports){
+},{"./emptyFunction":9,"_process":43}],3:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -427,7 +594,7 @@ function createNodesFromMarkup(markup, handleScript) {
 
 module.exports = createNodesFromMarkup;
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":3,"./createArrayFromMixed":7,"./getMarkupWrap":13,"./invariant":17,"_process":114}],9:[function(require,module,exports){
+},{"./ExecutionEnvironment":3,"./createArrayFromMixed":7,"./getMarkupWrap":13,"./invariant":17,"_process":43}],9:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -489,7 +656,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = emptyObject;
 }).call(this,require('_process'))
-},{"_process":114}],11:[function(require,module,exports){
+},{"_process":43}],11:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -650,7 +817,7 @@ function getMarkupWrap(nodeName) {
 
 module.exports = getMarkupWrap;
 }).call(this,require('_process'))
-},{"./ExecutionEnvironment":3,"./invariant":17,"_process":114}],14:[function(require,module,exports){
+},{"./ExecutionEnvironment":3,"./invariant":17,"_process":43}],14:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -816,7 +983,7 @@ function invariant(condition, format, a, b, c, d, e, f) {
 
 module.exports = invariant;
 }).call(this,require('_process'))
-},{"_process":114}],18:[function(require,module,exports){
+},{"_process":43}],18:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -917,7 +1084,7 @@ var keyMirror = function (obj) {
 
 module.exports = keyMirror;
 }).call(this,require('_process'))
-},{"./invariant":17,"_process":114}],21:[function(require,module,exports){
+},{"./invariant":17,"_process":43}],21:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -1207,7 +1374,7 @@ function toArray(obj) {
 
 module.exports = toArray;
 }).call(this,require('_process'))
-},{"./invariant":17,"_process":114}],28:[function(require,module,exports){
+},{"./invariant":17,"_process":43}],28:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -1267,7 +1434,11 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = warning;
 }).call(this,require('_process'))
-},{"./emptyFunction":9,"_process":114}],29:[function(require,module,exports){
+},{"./emptyFunction":9,"_process":43}],29:[function(require,module,exports){
+/* eslint-env browser */
+module.exports = typeof self == 'object' ? self.FormData : window.FormData;
+
+},{}],30:[function(require,module,exports){
 /**
  * Copyright 2015, Yahoo! Inc.
  * Copyrights licensed under the New BSD License. See the accompanying LICENSE file for terms.
@@ -1294,14 +1465,24 @@ var KNOWN_STATICS = {
     arity: true
 };
 
-module.exports = function hoistNonReactStatics(targetComponent, sourceComponent) {
-    var keys = Object.getOwnPropertyNames(sourceComponent);
-    for (var i=0; i<keys.length; ++i) {
-        if (!REACT_STATICS[keys[i]] && !KNOWN_STATICS[keys[i]]) {
-            try {
-                targetComponent[keys[i]] = sourceComponent[keys[i]];
-            } catch (error) {
+var isGetOwnPropertySymbolsAvailable = typeof Object.getOwnPropertySymbols === 'function';
 
+module.exports = function hoistNonReactStatics(targetComponent, sourceComponent, customStatics) {
+    if (typeof sourceComponent !== 'string') { // don't hoist over string (html) components
+        var keys = Object.getOwnPropertyNames(sourceComponent);
+
+        /* istanbul ignore else */
+        if (isGetOwnPropertySymbolsAvailable) {
+            keys = keys.concat(Object.getOwnPropertySymbols(sourceComponent));
+        }
+
+        for (var i = 0; i < keys.length; ++i) {
+            if (!REACT_STATICS[keys[i]] && !KNOWN_STATICS[keys[i]] && (!customStatics || !customStatics[keys[i]])) {
+                try {
+                    targetComponent[keys[i]] = sourceComponent[keys[i]];
+                } catch (error) {
+
+                }
             }
         }
     }
@@ -1309,7869 +1490,9 @@ module.exports = function hoistNonReactStatics(targetComponent, sourceComponent)
     return targetComponent;
 };
 
-},{}],30:[function(require,module,exports){
-'use strict';
-
-var _MHSDK = require('./models/sdk/MHSDK.js');
-
-var _MHSDK2 = _interopRequireDefault(_MHSDK);
-
-var _MHObject = require('./models/base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction = require('./models/action/MHAction.js');
-
-var _MHAction2 = _interopRequireDefault(_MHAction);
-
-var _MHAdd = require('./models/action/MHAdd.js');
-
-var _MHAdd2 = _interopRequireDefault(_MHAdd);
-
-var _MHComment = require('./models/action/MHComment.js');
-
-var _MHComment2 = _interopRequireDefault(_MHComment);
-
-var _MHCreate = require('./models/action/MHCreate.js');
-
-var _MHCreate2 = _interopRequireDefault(_MHCreate);
-
-var _MHLike = require('./models/action/MHLike.js');
-
-var _MHLike2 = _interopRequireDefault(_MHLike);
-
-var _MHFollow = require('./models/action/MHFollow.js');
-
-var _MHFollow2 = _interopRequireDefault(_MHFollow);
-
-var _MHPost = require('./models/action/MHPost.js');
-
-var _MHPost2 = _interopRequireDefault(_MHPost);
-
-var _MHHashtag = require('./models/hashtag/MHHashtag.js');
-
-var _MHHashtag2 = _interopRequireDefault(_MHHashtag);
-
-var _MHImage = require('./models/image/MHImage.js');
-
-var _MHImage2 = _interopRequireDefault(_MHImage);
-
-var _MHUser = require('./models/user/MHUser.js');
-
-var _MHUser2 = _interopRequireDefault(_MHUser);
-
-var _MHLoginSession = require('./models/user/MHLoginSession.js');
-
-var _MHLoginSession2 = _interopRequireDefault(_MHLoginSession);
-
-var _MHSocial = require('./models/social/MHSocial.js');
-
-var _MHSocial2 = _interopRequireDefault(_MHSocial);
-
-var _MHMedia = require('./models/media/MHMedia.js');
-
-var _MHMedia2 = _interopRequireDefault(_MHMedia);
-
-var _MHAlbum = require('./models/media/MHAlbum.js');
-
-var _MHAlbum2 = _interopRequireDefault(_MHAlbum);
-
-var _MHAlbumSeries = require('./models/media/MHAlbumSeries.js');
-
-var _MHAlbumSeries2 = _interopRequireDefault(_MHAlbumSeries);
-
-var _MHAnthology = require('./models/media/MHAnthology.js');
-
-var _MHAnthology2 = _interopRequireDefault(_MHAnthology);
-
-var _MHBook = require('./models/media/MHBook.js');
-
-var _MHBook2 = _interopRequireDefault(_MHBook);
-
-var _MHBookSeries = require('./models/media/MHBookSeries.js');
-
-var _MHBookSeries2 = _interopRequireDefault(_MHBookSeries);
-
-var _MHComicBook = require('./models/media/MHComicBook.js');
-
-var _MHComicBook2 = _interopRequireDefault(_MHComicBook);
-
-var _MHComicBookSeries = require('./models/media/MHComicBookSeries.js');
-
-var _MHComicBookSeries2 = _interopRequireDefault(_MHComicBookSeries);
-
-var _MHGame = require('./models/media/MHGame.js');
-
-var _MHGame2 = _interopRequireDefault(_MHGame);
-
-var _MHGameSeries = require('./models/media/MHGameSeries.js');
-
-var _MHGameSeries2 = _interopRequireDefault(_MHGameSeries);
-
-var _MHGraphicNovel = require('./models/media/MHGraphicNovel.js');
-
-var _MHGraphicNovel2 = _interopRequireDefault(_MHGraphicNovel);
-
-var _MHGraphicNovelSeries = require('./models/media/MHGraphicNovelSeries.js');
-
-var _MHGraphicNovelSeries2 = _interopRequireDefault(_MHGraphicNovelSeries);
-
-var _MHMovie = require('./models/media/MHMovie.js');
-
-var _MHMovie2 = _interopRequireDefault(_MHMovie);
-
-var _MHMovieSeries = require('./models/media/MHMovieSeries.js');
-
-var _MHMovieSeries2 = _interopRequireDefault(_MHMovieSeries);
-
-var _MHMusicVideo = require('./models/media/MHMusicVideo.js');
-
-var _MHMusicVideo2 = _interopRequireDefault(_MHMusicVideo);
-
-var _MHNovella = require('./models/media/MHNovella.js');
-
-var _MHNovella2 = _interopRequireDefault(_MHNovella);
-
-var _MHPeriodical = require('./models/media/MHPeriodical.js');
-
-var _MHPeriodical2 = _interopRequireDefault(_MHPeriodical);
-
-var _MHPeriodicalSeries = require('./models/media/MHPeriodicalSeries.js');
-
-var _MHPeriodicalSeries2 = _interopRequireDefault(_MHPeriodicalSeries);
-
-var _MHShowEpisode = require('./models/media/MHShowEpisode.js');
-
-var _MHShowEpisode2 = _interopRequireDefault(_MHShowEpisode);
-
-var _MHShowSeason = require('./models/media/MHShowSeason.js');
-
-var _MHShowSeason2 = _interopRequireDefault(_MHShowSeason);
-
-var _MHShowSeries = require('./models/media/MHShowSeries.js');
-
-var _MHShowSeries2 = _interopRequireDefault(_MHShowSeries);
-
-var _MHTrack = require('./models/media/MHTrack.js');
-
-var _MHTrack2 = _interopRequireDefault(_MHTrack);
-
-var _MHSpecial = require('./models/media/MHSpecial.js');
-
-var _MHSpecial2 = _interopRequireDefault(_MHSpecial);
-
-var _MHSpecialSeries = require('./models/media/MHSpecialSeries.js');
-
-var _MHSpecialSeries2 = _interopRequireDefault(_MHSpecialSeries);
-
-var _MHTrailer = require('./models/media/MHTrailer.js');
-
-var _MHTrailer2 = _interopRequireDefault(_MHTrailer);
-
-var _MHCollection = require('./models/collection/MHCollection.js');
-
-var _MHCollection2 = _interopRequireDefault(_MHCollection);
-
-var _MHTrait = require('./models/trait/MHTrait.js');
-
-var _MHTrait2 = _interopRequireDefault(_MHTrait);
-
-var _MHGenre = require('./models/trait/MHGenre.js');
-
-var _MHGenre2 = _interopRequireDefault(_MHGenre);
-
-var _MHSubGenre = require('./models/trait/MHSubGenre.js');
-
-var _MHSubGenre2 = _interopRequireDefault(_MHSubGenre);
-
-var _MHMood = require('./models/trait/MHMood.js');
-
-var _MHMood2 = _interopRequireDefault(_MHMood);
-
-var _MHQuality = require('./models/trait/MHQuality.js');
-
-var _MHQuality2 = _interopRequireDefault(_MHQuality);
-
-var _MHStyleElement = require('./models/trait/MHStyleElement.js');
-
-var _MHStyleElement2 = _interopRequireDefault(_MHStyleElement);
-
-var _MHStoryElement = require('./models/trait/MHStoryElement.js');
-
-var _MHStoryElement2 = _interopRequireDefault(_MHStoryElement);
-
-var _MHMaterialSource = require('./models/trait/MHMaterialSource.js');
-
-var _MHMaterialSource2 = _interopRequireDefault(_MHMaterialSource);
-
-var _MHTheme = require('./models/trait/MHTheme.js');
-
-var _MHTheme2 = _interopRequireDefault(_MHTheme);
-
-var _MHAchievement = require('./models/trait/MHAchievement.js');
-
-var _MHAchievement2 = _interopRequireDefault(_MHAchievement);
-
-var _MHEra = require('./models/trait/MHEra.js');
-
-var _MHEra2 = _interopRequireDefault(_MHEra);
-
-var _MHAudience = require('./models/trait/MHAudience.js');
-
-var _MHAudience2 = _interopRequireDefault(_MHAudience);
-
-var _MHFlag = require('./models/trait/MHFlag.js');
-
-var _MHFlag2 = _interopRequireDefault(_MHFlag);
-
-var _MHGraphGenre = require('./models/trait/MHGraphGenre.js');
-
-var _MHGraphGenre2 = _interopRequireDefault(_MHGraphGenre);
-
-var _MHContributor = require('./models/contributor/MHContributor.js');
-
-var _MHContributor2 = _interopRequireDefault(_MHContributor);
-
-var _MHRealIndividualContributor = require('./models/contributor/MHRealIndividualContributor.js');
-
-var _MHRealIndividualContributor2 = _interopRequireDefault(_MHRealIndividualContributor);
-
-var _MHRealGroupContributor = require('./models/contributor/MHRealGroupContributor.js');
-
-var _MHRealGroupContributor2 = _interopRequireDefault(_MHRealGroupContributor);
-
-var _MHFictionalIndividualContributor = require('./models/contributor/MHFictionalIndividualContributor.js');
-
-var _MHFictionalIndividualContributor2 = _interopRequireDefault(_MHFictionalIndividualContributor);
-
-var _MHFictionalGroupContributor = require('./models/contributor/MHFictionalGroupContributor.js');
-
-var _MHFictionalGroupContributor2 = _interopRequireDefault(_MHFictionalGroupContributor);
-
-var _MHSource = require('./models/source/MHSource.js');
-
-var _MHSource2 = _interopRequireDefault(_MHSource);
-
-var _MHSubscription = require('./models/source/MHSubscription.js');
-
-var _MHSubscription2 = _interopRequireDefault(_MHSubscription);
-
-var _MHSourceFormat = require('./models/source/MHSourceFormat.js');
-
-var _MHSourceFormat2 = _interopRequireDefault(_MHSourceFormat);
-
-var _MHSourceMethod = require('./models/source/MHSourceMethod.js');
-
-var _MHSourceMethod2 = _interopRequireDefault(_MHSourceMethod);
-
-var _MHSourceMedium = require('./models/source/MHSourceMedium.js');
-
-var _MHSourceMedium2 = _interopRequireDefault(_MHSourceMedium);
-
-var _MHSearch = require('./search/MHSearch.js');
-
-var _MHSearch2 = _interopRequireDefault(_MHSearch);
-
-var _houndRequest = require('./request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-// We use a commonjs export here so ES5 clients don't have to do:
-// require('houndjs').default
-// Instead they can just do:
-// require('houndjs')
-
-
-// Search
-
-
-// Contributor Models
-
-
-// Trait Models
-
-
-// Media Models
-
-
-// Action Models
-
-// SDK
-module.exports = {
-  MHSDK: _MHSDK2.default,
-
-  MHObject: _MHObject2.default,
-
-  MHAction: _MHAction2.default,
-  MHAdd: _MHAdd2.default,
-  MHComment: _MHComment2.default,
-  MHCreate: _MHCreate2.default,
-  MHLike: _MHLike2.default,
-  MHFollow: _MHFollow2.default,
-  MHPost: _MHPost2.default,
-
-  MHHashtag: _MHHashtag2.default,
-
-  MHImage: _MHImage2.default,
-
-  MHUser: _MHUser2.default,
-  MHLoginSession: _MHLoginSession2.default,
-
-  MHSocial: _MHSocial2.default,
-
-  MHMedia: _MHMedia2.default,
-  MHAlbum: _MHAlbum2.default,
-  MHAlbumSeries: _MHAlbumSeries2.default,
-  MHAnthology: _MHAnthology2.default,
-  MHBook: _MHBook2.default,
-  MHBookSeries: _MHBookSeries2.default,
-  MHComicBook: _MHComicBook2.default,
-  MHComicBookSeries: _MHComicBookSeries2.default,
-  MHGame: _MHGame2.default,
-  MHGameSeries: _MHGameSeries2.default,
-  MHGraphicNovel: _MHGraphicNovel2.default,
-  MHGraphicNovelSeries: _MHGraphicNovelSeries2.default,
-  MHMovie: _MHMovie2.default,
-  MHMovieSeries: _MHMovieSeries2.default,
-  MHMusicVideo: _MHMusicVideo2.default,
-  MHNovella: _MHNovella2.default,
-  MHPeriodical: _MHPeriodical2.default,
-  MHPeriodicalSeries: _MHPeriodicalSeries2.default,
-  MHShowEpisode: _MHShowEpisode2.default,
-  MHShowSeason: _MHShowSeason2.default,
-  MHShowSeries: _MHShowSeries2.default,
-  MHTrack: _MHTrack2.default,
-  MHSpecial: _MHSpecial2.default,
-  MHSpecialSeries: _MHSpecialSeries2.default,
-  MHTrailer: _MHTrailer2.default,
-
-  MHCollection: _MHCollection2.default,
-
-  MHTrait: _MHTrait2.default,
-  MHGenre: _MHGenre2.default,
-  MHSubGenre: _MHSubGenre2.default,
-  MHMood: _MHMood2.default,
-  MHQuality: _MHQuality2.default,
-  MHStyleElement: _MHStyleElement2.default,
-  MHStoryElement: _MHStoryElement2.default,
-  MHMaterialSource: _MHMaterialSource2.default,
-  MHTheme: _MHTheme2.default,
-  MHAchievement: _MHAchievement2.default,
-  MHEra: _MHEra2.default,
-  MHAudience: _MHAudience2.default,
-  MHFlag: _MHFlag2.default,
-  MHGraphGenre: _MHGraphGenre2.default,
-
-  MHContributor: _MHContributor2.default,
-  MHRealIndividualContributor: _MHRealIndividualContributor2.default,
-  MHRealGroupContributor: _MHRealGroupContributor2.default,
-  MHFictionalIndividualContributor: _MHFictionalIndividualContributor2.default,
-  MHFictionalGroupContributor: _MHFictionalGroupContributor2.default,
-
-  MHSource: _MHSource2.default,
-  MHSubscription: _MHSubscription2.default,
-  MHSourceFormat: _MHSourceFormat2.default,
-  MHSourceMethod: _MHSourceMethod2.default,
-  MHSourceMedium: _MHSourceMedium2.default,
-
-  MHSearch: _MHSearch2.default,
-
-  houndRequest: _houndRequest2.default
-};
-
-// Request
-
-
-// Source Models
-
-
-// Social Models
-
-
-// User Models
-
-
-// Hashtag Models
-
-
-// Base Models
-},{"./models/action/MHAction.js":31,"./models/action/MHAdd.js":32,"./models/action/MHComment.js":33,"./models/action/MHCreate.js":34,"./models/action/MHFollow.js":35,"./models/action/MHLike.js":36,"./models/action/MHPost.js":37,"./models/base/MHObject.js":38,"./models/collection/MHCollection.js":39,"./models/contributor/MHContributor.js":46,"./models/contributor/MHFictionalGroupContributor.js":47,"./models/contributor/MHFictionalIndividualContributor.js":48,"./models/contributor/MHRealGroupContributor.js":49,"./models/contributor/MHRealIndividualContributor.js":50,"./models/hashtag/MHHashtag.js":51,"./models/image/MHImage.js":52,"./models/media/MHAlbum.js":57,"./models/media/MHAlbumSeries.js":58,"./models/media/MHAnthology.js":59,"./models/media/MHBook.js":60,"./models/media/MHBookSeries.js":61,"./models/media/MHComicBook.js":62,"./models/media/MHComicBookSeries.js":63,"./models/media/MHGame.js":64,"./models/media/MHGameSeries.js":65,"./models/media/MHGraphicNovel.js":66,"./models/media/MHGraphicNovelSeries.js":67,"./models/media/MHMedia.js":68,"./models/media/MHMovie.js":69,"./models/media/MHMovieSeries.js":70,"./models/media/MHMusicVideo.js":71,"./models/media/MHNovella.js":72,"./models/media/MHPeriodical.js":73,"./models/media/MHPeriodicalSeries.js":74,"./models/media/MHShowEpisode.js":75,"./models/media/MHShowSeason.js":76,"./models/media/MHShowSeries.js":77,"./models/media/MHSpecial.js":78,"./models/media/MHSpecialSeries.js":79,"./models/media/MHTrack.js":80,"./models/media/MHTrailer.js":81,"./models/sdk/MHSDK.js":83,"./models/social/MHSocial.js":84,"./models/source/MHSource.js":85,"./models/source/MHSourceFormat.js":86,"./models/source/MHSourceMedium.js":87,"./models/source/MHSourceMethod.js":88,"./models/source/MHSubscription.js":89,"./models/trait/MHAchievement.js":90,"./models/trait/MHAudience.js":91,"./models/trait/MHEra.js":92,"./models/trait/MHFlag.js":93,"./models/trait/MHGenre.js":94,"./models/trait/MHGraphGenre.js":95,"./models/trait/MHMaterialSource.js":96,"./models/trait/MHMood.js":97,"./models/trait/MHQuality.js":98,"./models/trait/MHStoryElement.js":99,"./models/trait/MHStyleElement.js":100,"./models/trait/MHSubGenre.js":101,"./models/trait/MHTheme.js":102,"./models/trait/MHTrait.js":103,"./models/user/MHLoginSession.js":104,"./models/user/MHUser.js":105,"./request/hound-request.js":106,"./search/MHSearch.js":108}],31:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-var _MHMetadata2 = _interopRequireDefault(_MHMetadata);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Action Object
-
-var MHAction = function (_MHObject) {
-  _inherits(MHAction, _MHObject);
-
-  function MHAction() {
-    _classCallCheck(this, MHAction);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAction).apply(this, arguments));
-  }
-
-  _createClass(MHAction, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHAction.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata2.default,
-        primaryOwner: { mapper: _MHObject3.default.create },
-        primaryMention: { mapper: _MHObject3.default.create }
-      });
-    }
-  }], [{
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/action';
-    }
-  }]);
-
-  return MHAction;
-}(_MHObject3.default);
-
-exports.default = MHAction;
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],32:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Add Object
-
-var MHAdd = function (_MHAction) {
-  _inherits(MHAdd, _MHAction);
-
-  function MHAdd() {
-    _classCallCheck(this, MHAdd);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAdd).apply(this, arguments));
-  }
-
-  _createClass(MHAdd, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhadd';
-    }
-  }]);
-
-  return MHAdd;
-}(_MHAction3.default);
-
-exports.default = MHAdd;
-
-
-_MHObject2.default.registerConstructor(MHAdd, 'MHAdd');
-},{"../base/MHObject.js":38,"./MHAction.js":31}],33:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Comment Object
-
-var MHComment = function (_MHAction) {
-  _inherits(MHComment, _MHAction);
-
-  function MHComment() {
-    _classCallCheck(this, MHComment);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHComment).apply(this, arguments));
-  }
-
-  _createClass(MHComment, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhcmt';
-    }
-  }]);
-
-  return MHComment;
-}(_MHAction3.default);
-
-exports.default = MHComment;
-
-
-_MHObject2.default.registerConstructor(MHComment, 'MHComment');
-},{"../base/MHObject.js":38,"./MHAction.js":31}],34:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Create Object
-
-var MHCreate = function (_MHAction) {
-  _inherits(MHCreate, _MHAction);
-
-  function MHCreate() {
-    _classCallCheck(this, MHCreate);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHCreate).apply(this, arguments));
-  }
-
-  _createClass(MHCreate, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhcrt';
-    }
-  }]);
-
-  return MHCreate;
-}(_MHAction3.default);
-
-exports.default = MHCreate;
-
-
-_MHObject2.default.registerConstructor(MHCreate, 'MHCreate');
-},{"../base/MHObject.js":38,"./MHAction.js":31}],35:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Follow Object
-
-var MHFollow = function (_MHAction) {
-  _inherits(MHFollow, _MHAction);
-
-  function MHFollow() {
-    _classCallCheck(this, MHFollow);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHFollow).apply(this, arguments));
-  }
-
-  _createClass(MHFollow, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhflw';
-    }
-  }]);
-
-  return MHFollow;
-}(_MHAction3.default);
-
-exports.default = MHFollow;
-
-
-_MHObject2.default.registerConstructor(MHFollow, 'MHFollow');
-},{"../base/MHObject.js":38,"./MHAction.js":31}],36:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Like Object
-
-var MHLike = function (_MHAction) {
-  _inherits(MHLike, _MHAction);
-
-  function MHLike() {
-    _classCallCheck(this, MHLike);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHLike).apply(this, arguments));
-  }
-
-  _createClass(MHLike, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhlke';
-    }
-  }]);
-
-  return MHLike;
-}(_MHAction3.default);
-
-exports.default = MHLike;
-
-
-_MHObject2.default.registerConstructor(MHLike, 'MHLike');
-},{"../base/MHObject.js":38,"./MHAction.js":31}],37:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHAction2 = require('./MHAction.js');
-
-var _MHAction3 = _interopRequireDefault(_MHAction2);
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Post Object
-
-var MHPost = function (_MHAction) {
-  _inherits(MHPost, _MHAction);
-
-  function MHPost() {
-    _classCallCheck(this, MHPost);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHPost).apply(this, arguments));
-  }
-
-  _createClass(MHPost, null, [{
-    key: 'createWithMessage',
-
-
-    /**
-     *
-     * MHPost.createWithMessage(message{String}, mentions{Array<MHObject>}, primaryMention{MHObject})
-     *
-     * @param {string} message - the message for this new post
-     */
-    value: function createWithMessage(message, mentions, primaryMention) {
-      if (!message || !mentions || !primaryMention || typeof message !== 'string' || !Array.isArray(mentions) || !mentions.every(function (x) {
-        return x instanceof _MHObject2.default;
-      }) || !(primaryMention instanceof _MHObject2.default)) {
-        throw new TypeError('Can\'t create post without message string, mentions array, and primary mention object.');
-      }
-
-      var path = this.rootSubendpoint('new');
-      var mentionedMhids = mentions.map(function (m) {
-        return m.metadata.mhid;
-      });
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        data: {
-          'message': message,
-          'mentions': mentionedMhids,
-          'primaryMention': primaryMention.metadata.mhid
-        }
-      }).then(function (res) {
-        // update social counts of mentioned objects
-        mentions.forEach(function (m) {
-          return m.fetchSocial(true);
-        });
-        return res;
-      });
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhpst';
-    }
-  }]);
-
-  return MHPost;
-}(_MHAction3.default);
-
-exports.default = MHPost;
-
-
-_MHObject2.default.registerConstructor(MHPost, 'MHPost');
-},{"../../request/hound-request.js":106,"../base/MHObject.js":38,"./MHAction.js":31}],38:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.mhidLRU = undefined;
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _debugHelpers = require('../internal/debug-helpers.js');
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-var _MHCache = require('../internal/MHCache.js');
-
-var _MHCache2 = _interopRequireDefault(_MHCache);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-var _MHSocial = require('../social/MHSocial.js');
-
-var _MHSocial2 = _interopRequireDefault(_MHSocial);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var childrenConstructors = {};
-var __cachedRootResponses = {};
-
-// Create Cache
-var mhidLRU = exports.mhidLRU = new _MHCache2.default(1000);
-
-if (typeof window !== 'undefined') {
-  if (window.location.host === 'local.mediahound.com:2014') {
-    window.mhidLRU = mhidLRU;
-  }
-}
-
-// Symbols for Element hiding
-var lastSocialRequestIdSym = Symbol('lastSocialRequestId'),
-    socialSym = Symbol('social');
-
-// TODO: editable primary and secondary image properties using Symbols
-
-// Base MediaHound Object
-
-var MHObject = function () {
-
-  /** MHObject Constructor
-   *  @constructor
-   * MediaHound Object constructors take a single parameter {Object | JSON String}
-   * If the argument is an object properties will be read and placed properly
-   *  if a prop doesn't exist and is optional it will be replaced with a null value.
-   * If the argument is a string it will be passed through JSON.parse and then the constructor will continue as normal.
-   *
-   *  @param args - { Object | JSON String }
-   *
-   *    Require Param Props
-   *      mhid    - { MediaHound ID string }
-   *
-   *  Optional Param Props
-   *      name            - { String }
-   *      altId           - { String }
-   *      primaryImage    - { MHImage }
-   *      secondaryImage  - { MHImage }
-   *      createdDate     - { Date }
-   *
-   */
-
-  function MHObject(args) {
-    _classCallCheck(this, MHObject);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-
-    this.cachedResponses = {};
-  }
-
-  _createClass(MHObject, [{
-    key: 'isEqualToMHObject',
-
-
-    /**
-     * mhObj.isEqualToMHObject(otherObj)
-     *
-     * @param { <MHObject> }  - MediaHound Type to check against
-     * @return { Boolean }    - True or False if mhids match
-     *
-     */
-    value: function isEqualToMHObject(otherObj) {
-      if (otherObj && otherObj.metadata.mhid) {
-        return this.metadata.mhid === otherObj.metadata.mhid;
-      }
-      return false;
-    }
-    // TODO Add deep equality check?
-    // might be useful for checking for changes in cache'd objects
-
-    /**
-     * mhObj.hasMhid(mhid)
-     *
-     * @param {string} mhid - a string mhid to check against this object
-     * @returns {boolean}
-     */
-
-  }, {
-    key: 'hasMhid',
-    value: function hasMhid(mhid) {
-      if (typeof mhid === 'string' || mhid instanceof String) {
-        return this.metadata.mhid === mhid;
-      }
-      return false;
-    }
-
-    // TODO Could change as needed
-
-  }, {
-    key: 'toString',
-    value: function toString() {
-      return this.className + ' with mhid ' + this.metadata.mhid + ' and name ' + this.mhName;
-    }
-  }, {
-    key: 'mergeWithData',
-    value: function mergeWithData(args) {
-      (0, _jsonParse.jsonMergeWithArgs)(args, this);
-    }
-
-    /**
-     * MHObject.fetchByMhid(mhid)
-     *
-     * @param   { String        } mhid  - valid MediaHound ID
-     * @param   { String        } view  - set to basic, basic_social, extended, extended_social, full, defaults to basic.
-     * @param   { boolean=false } force - set to true to re-request for the given mhid
-     * @return  { Promise       } - resloves to specific MHObject sub class
-     *
-     */
-
-  }, {
-    key: 'subendpoint',
-
-
-    /**
-     * mhObj.subendpoint(sub)
-     *
-     * @param   { String } - subendpoint to be added onto this.endpoint
-     * @returns { String } - example with ('like'): 'graph/media/mhmov1000009260/like'
-     *
-     */
-    value: function subendpoint(sub) {
-      if (typeof sub !== 'string' && !(sub instanceof String)) {
-        throw new TypeError('Sub not of type string or undefined in (MHObject).subendpoint.');
-      }
-      return this.endpoint + '/' + sub;
-    }
-  }, {
-    key: 'fetchSocial',
-
-
-    /**
-     * mhObj.fetchSocial()
-     * Calls server for new social stats
-     * @param {boolean} force - Forces an http request if set to true
-     * @return  { Promise }  - Resolves to Social stats as returned by the server
-     *
-     */
-    value: function fetchSocial() {
-      var _this = this;
-
-      var force = arguments.length <= 0 || arguments[0] === undefined ? false : arguments[0];
-
-      var path = this.subendpoint('social');
-
-      if (!force && this.social instanceof _MHSocial2.default) {
-        return Promise.resolve(this.social);
-      }
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (parsed) {
-        return _this.social = new _MHSocial2.default(parsed);
-      }.bind(this)).catch(function (err) {
-        console.warn('fetchSocial:', err);
-      });
-    }
-
-    /** TODO: Move to Objects that actually use it, i.e. not MHAction
-     * mhObj.fetchFeed(view, page, size)
-     *
-     * @param { string=full   } view - the view param
-     * @param { number=0      } page - the zero indexed page number to return
-     * @param { number=12     } size  - the number of items to return per page
-     * @param { Boolean=false } force
-     *
-     * @return { houndPagedRequest }  - MediaHound paged request object for this feed
-     *
-     */
-
-  }, {
-    key: 'fetchFeed',
-    value: function fetchFeed() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('feed');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /* TODO: DocJS
-    * mhMed.fetchImages()
-    *
-    * @param force { Boolean } - force refetch of content
-    * @return { Promise } - resolves to
-    *
-    */
-
-  }, {
-    key: 'fetchImages',
-    value: function fetchImages() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('images');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /*
-     * mhContributor.fetchCollections(force)
-     *
-     * @return { Promise }  - resolves to server response of collections for this MediaHound object
-     *
-     */
-
-  }, {
-    key: 'fetchCollections',
-    value: function fetchCollections() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
-
-      var path = this.subendpoint('collections');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /* TODO: DocJS
-    * mhMed.fetchBaseTraits()
-    *
-    * @param force { Boolean } - force refetch of content
-    * @return { Promise } - resolves to
-    *
-    */
-
-  }, {
-    key: 'fetchBaseTraits',
-    value: function fetchBaseTraits() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('baseTraits');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'fetchGraphGenres',
-    value: function fetchGraphGenres() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('graphGenres');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /**
-     *
-     * mhObj.takeAction(action)
-     *
-     * @param   { string } action - The action to take, should be accessed from MHSocial.LIKE, MHSocial.FOLLOW, etc.
-     *
-     * @return  { Promise } - resolves to server response of action call
-     *
-     */
-
-  }, {
-    key: 'takeAction',
-    value: function takeAction(action) {
-      var _this2 = this;
-
-      if (typeof action !== 'string' && !(action instanceof String)) {
-        throw new TypeError('Action not of type String or undefined');
-      }
-      if (!_MHSocial2.default.SOCIAL_ACTIONS.some(function (a) {
-        return action === a;
-      })) {
-        throw new TypeError('Action is not of an accepted type in mhObj.takeAction');
-      }
-
-      (0, _debugHelpers.log)('in takeAction, action: ' + action + ', obj: ' + this.toString());
-
-      var path = this.subendpoint(action),
-          requestId = Math.random(),
-          original = this.social,
-          self = this;
-
-      // Expected outcome
-      if (this.social instanceof _MHSocial2.default) {
-        this.social = this.social.newWithAction(action);
-      }
-
-      // Save request id to check against later
-      this[lastSocialRequestIdSym] = requestId;
-
-      // Return promise to new Social as returned from the server
-      return (0, _houndRequest2.default)({
-        method: 'PUT',
-        endpoint: path
-      }).then(function (socialRes) {
-        var newSocial = new _MHSocial2.default(socialRes.social);
-
-        // only update if this is the last request returning
-        if (_this2[lastSocialRequestIdSym] === requestId) {
-          self.social = newSocial;
-        }
-        //log('in take action response, newSocial: ', newSocial);
-        return newSocial;
-      }).catch(function (err) {
-        if (_this2[lastSocialRequestIdSym] === requestId) {
-          self.social = original;
-        }
-        throw err;
-      });
-    }
-  }, {
-    key: 'responseCacheKeyForPath',
-    value: function responseCacheKeyForPath(path) {
-      return '__cached_' + path;
-    }
-  }, {
-    key: 'cachedResponseForPath',
-    value: function cachedResponseForPath(path) {
-      var cacheKey = this.responseCacheKeyForPath(path);
-      return this.cachedResponses[cacheKey];
-    }
-  }, {
-    key: 'setCachedResponse',
-    value: function setCachedResponse(response, path) {
-      var cacheKey = this.responseCacheKeyForPath(path);
-      this.cachedResponses[cacheKey] = response;
-    }
-  }, {
-    key: 'fetchPagedEndpoint',
-    value: function fetchPagedEndpoint(path, view, size, force) {
-      var _this3 = this;
-
-      var next = arguments.length <= 4 || arguments[4] === undefined ? null : arguments[4];
-
-      if (!force && !next) {
-        var cached = this.cachedResponseForPath(path);
-        if (cached) {
-          return cached;
-        }
-      }
-
-      var promise;
-
-      if (next) {
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          url: next
-        });
-      } else {
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          endpoint: path,
-          params: {
-            pageSize: size,
-            view: view
-          }
-        });
-      }
-
-      var finalPromise = promise.then(function (response) {
-        var MHPagedResponse = require('../container/MHPagedResponse.js').default;
-        var pagedResponse = new MHPagedResponse(response);
-
-        pagedResponse.fetchNextOperation = function (newNext) {
-          return _this3.fetchPagedEndpoint(path, view, size, force, newNext);
-        };
-
-        return pagedResponse;
-      });
-
-      if (!next) {
-        this.setCachedResponse(finalPromise, path);
-      }
-
-      return finalPromise;
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        metadata: _MHMetadata.MHMetadata,
-        primaryImage: { mapper: MHObject.create },
-        secondaryImage: { mapper: MHObject.create },
-        social: _MHSocial2.default
-      };
-    }
-
-    /** @property {MHSocial} social */
-
-  }, {
-    key: 'social',
-    get: function get() {
-      return this[socialSym] || null;
-    },
-    set: function set(newSocial) {
-      if (newSocial instanceof _MHSocial2.default) {
-        this[socialSym] = newSocial;
-      }
-      return this.social;
-    }
-
-    /**
-     * MHObject.create(args)
-     *
-     * @param   { Object | JSON<String> | Array{Objects | JSON<Strings>} } - Array or, single Object or JSON of MediaHound Object definition(s).
-     * @returns { <MHObject> } - Specific MediaHound Type. ex: MHMovie, MHAlbum, MHTrack, MHContributor, etc.
-     *
-     * returns null if can't find associated class
-     */
-
-  }, {
-    key: 'type',
-    get: function get() {
-      return MHObject.isType(this);
-    }
-
-    /**
-     * This uses the function.name feature which is shimmed if it doesn't exist during the child constructor registration process.
-     * @property {string} className - the string class name for this object, ie: MHUser, MHMovie, MHPost, etc.
-     */
-
-  }, {
-    key: 'className',
-    get: function get() {
-      return this.constructor.mhName;
-    }
-  }, {
-    key: 'endpoint',
-
-
-    /**
-     * mhObj.endpoint
-     *
-     * @return { String } - ex: 'graph/media/mhmov1000009260'
-     *
-     */
-    get: function get() {
-      return this.constructor.rootEndpoint + '/' + this.metadata.mhid;
-    }
-  }], [{
-    key: 'create',
-    value: function create(args) {
-      var saveToLRU = arguments.length <= 1 || arguments[1] === undefined ? true : arguments[1];
-
-      if (args instanceof Array) {
-        (0, _debugHelpers.log)('trying to create MHObject that is new: ' + args);
-        //return args.map(MHObject.create); // <-- should probably be this once all MHObjs are done
-        return args.map(function (value) {
-          try {
-            return MHObject.create(value);
-          } catch (e) {
-            (0, _debugHelpers.error)(e);
-            return value;
-          }
-        });
-      }
-      try {
-
-        if (args.mhid && args.metadata === undefined) {
-          args.metadata = {
-            'mhid': args.mhid,
-            'altId': args.altId,
-            'name': args.name
-          };
-        }
-
-        //log(args.metadata.mhid)
-        var mhid = args.metadata.mhid || args.mhid || undefined;
-        var mhObj;
-        //console.log('at start of creating... ',mhid,args);
-
-        if (mhid !== 'undefined' && mhid !== null && args instanceof Object) {
-          args.mhid = mhid;
-          // check cache
-          //log('in create function trying to parseArgs: \n\n' , args);
-
-          if (mhidLRU.has(args.metadata.mhid) || mhidLRU.has(args.mhid)) {
-            (0, _debugHelpers.log)('getting from cache in create: ' + args.metadata.mhid);
-            var foundObject = mhidLRU.get(args.metadata.mhid);
-            if (foundObject) {
-              foundObject.mergeWithData(args);
-            }
-            return foundObject;
-          }
-
-          var prefix = MHObject.getPrefixFromMhid(mhid);
-          (0, _debugHelpers.log)(prefix, new childrenConstructors[prefix](args));
-          mhObj = new childrenConstructors[prefix](args);
-
-          // if (prefix === 'mhimg') {
-          //   // bypass cache
-          // }
-          // else {
-          //   log('putting from create');
-          //   mhidLRU.putMHObj(mhObj);
-          // }
-          //console.log('creating... ',prefix,': ', mhObj);
-          if (saveToLRU) {
-            mhidLRU.putMHObj(mhObj);
-          }
-          return mhObj;
-        } else {
-          mhObj = args;
-          //log('creating without a prefix...', mhObj);
-          return mhObj;
-        }
-      } catch (err) {
-        //log(err);
-        console.log(err);
-        console.log(err.stack);
-        if (err instanceof TypeError) {
-          if (err.message === 'undefined is not a function') {
-            (0, _debugHelpers.warn)('Unknown mhid prefix, see args object: ', args);
-          }
-          if (err.message === 'Args was object without mhid!') {
-            //warn('Incomplete Object passed to create function: ', args);
-          }
-        }
-        //error(err.stack); // turning off this error because it is really annoying!
-        return null;
-      }
-      return null;
-    }
-
-    /***
-     * Register Child Constructors
-     *
-     * MHObject.registerConstructor(mhClass)
-     *
-     * @param  { Function } mhClass - MediaHound Object constructor to be used within MHObject.create and other methods
-     * @return { Boolean }                - Success(true) or Fail(false)
-     *
-     */
-
-  }, {
-    key: 'registerConstructor',
-    value: function registerConstructor(mhClass, mhName) {
-      // Add class name if function.name is not native
-      // if (mhClass.name === undefined) {
-      //   mhClass.name = mhClass.toString().match(/function (MH[A-Za-z]*)\(args\)/)[1];
-      //   log('shimmed mhClass.name to: ' + mhClass.name);
-      // }
-      mhClass.mhName = mhName;
-      //log('registering constructor: ' + mhClass.name);
-
-      var prefix = mhClass.mhidPrefix;
-      if (typeof prefix !== 'undefined' && prefix !== null && !(prefix in childrenConstructors)) {
-        Object.defineProperty(childrenConstructors, prefix, {
-          configurable: false,
-          enumerable: true,
-          writable: false,
-          value: mhClass
-        });
-        return true;
-      }
-      return false;
-    }
-
-    /**
-     * MHObject.prefixes
-     *
-     * @return { Array } - A list of MediaHound ID prefixes
-     *
-     * Note: This list contains only prefixes of types known to the MHObject.create method
-     */
-    // List of prefixes known to MHObject through registerConstructor
-
-  }, {
-    key: 'getPrefixFromMhid',
-
-
-    /**
-     * MHObject.getPrefixFromMhid(mhid)
-     *
-     * @param  { String } mhid - a valid MediaHound ID
-     * @return { String } - a valid MediaHound ID prefix
-     *
-     */
-    value: function getPrefixFromMhid(mhid) {
-      for (var pfx in childrenConstructors) {
-        if (childrenConstructors.hasOwnProperty(pfx) && new RegExp('^' + pfx).test(mhid)) {
-          return pfx;
-        }
-      }
-      return null;
-    }
-
-    /**
-     * MHObject.getClassNameFromMhid(mhid)
-     *
-     * @param  { String } mhid - a valid MediaHound ID
-     * @return { String } - the class name associated with the prefix
-     *
-     */
-
-  }, {
-    key: 'getClassNameFromMhid',
-    value: function getClassNameFromMhid(mhid) {
-      var pfx = MHObject.getPrefixFromMhid(mhid);
-      if (childrenConstructors[pfx]) {
-        return childrenConstructors[pfx].mhName;
-      }
-      return null;
-    }
-
-    /**
-     * mhObj.mhidPrefix
-     *
-     * @return { String } - the MediaHound ID prefix associated with this MHObject.
-     *
-     * Note: Override at child level
-     */
-
-  }, {
-    key: 'isMedia',
-
-
-    // Type Checking
-    // TODO: Update these checks for cross site scripting cases
-    // case:
-    //    instanceof only works if the object being checked was created
-    //    in the same global scope as the constructor function it is being checked against
-    value: function isMedia(toCheck) {
-      return toCheck instanceof require('../media/MHMedia.js').default;
-    }
-  }, {
-    key: 'isContributor',
-    value: function isContributor(toCheck) {
-      return toCheck instanceof require('../contributor/MHContributor.js').default;
-    }
-  }, {
-    key: 'isAction',
-    value: function isAction(toCheck) {
-      return toCheck instanceof require('../action/MHAction.js').default;
-    }
-  }, {
-    key: 'isUser',
-    value: function isUser(toCheck) {
-      return toCheck instanceof require('../user/MHUser.js').default;
-    }
-  }, {
-    key: 'isCollection',
-    value: function isCollection(toCheck) {
-      return toCheck instanceof require('../collection/MHCollection.js').default;
-    }
-  }, {
-    key: 'isImage',
-    value: function isImage(toCheck) {
-      return toCheck instanceof require('../image/MHImage.js').default;
-    }
-  }, {
-    key: 'isTrait',
-    value: function isTrait(toCheck) {
-      return toCheck instanceof require('../trait/MHTrait.js').default;
-    }
-  }, {
-    key: 'isSource',
-    value: function isSource(toCheck) {
-      return toCheck instanceof require('../source/MHSource.js').default;
-    }
-  }, {
-    key: 'isType',
-    value: function isType(obj) {
-      var type = '';
-
-      if (MHObject.isAction(obj)) {
-        type = 'MHAction';
-      } else if (MHObject.isMedia(obj)) {
-        type = 'MHMedia';
-      } else if (MHObject.isImage(obj)) {
-        type = 'MHImage';
-      } else if (MHObject.isCollection(obj)) {
-        type = 'MHCollection';
-      } else if (MHObject.isUser(obj)) {
-        type = 'MHUser';
-      } else if (MHObject.isContributor(obj)) {
-        type = 'MHContributor';
-      } else if (MHObject.isSource(obj)) {
-        type = 'MHSource';
-      } else if (MHObject.isTrait(obj)) {
-        type = 'MHTrait';
-      } else {
-        type = null;
-      }
-
-      return type;
-    }
-  }, {
-    key: 'enterWithMappedSourceIds',
-    value: function enterWithMappedSourceIds(msis) {
-      var endpoint = 'graph/enter/raw';
-      var params = {
-        ids: msis
-      };
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: endpoint,
-        params: params
-      });
-    }
-  }, {
-    key: 'fetchByMhid',
-    value: function fetchByMhid(mhid) {
-      var view = arguments.length <= 1 || arguments[1] === undefined ? 'full' : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-
-      if (typeof mhid !== 'string' && !(mhid instanceof String)) {
-        throw TypeError('MHObject.fetchByMhid argument must be type string.');
-      }
-
-      if (view === null || view === undefined) {
-        view = 'full';
-      }
-
-      (0, _debugHelpers.log)('in fetchByMhid, looking for: ', mhid, 'with view = ', view);
-
-      // Check LRU for mhid
-      if (!force && mhidLRU.has(mhid)) {
-        return Promise.resolve(mhidLRU.get(mhid));
-      }
-      // Check LRU for altId
-      if (!force && mhidLRU.hasAltId(mhid)) {
-        return Promise.resolve(mhidLRU.getByAltId(mhid));
-      }
-
-      var prefix = MHObject.getPrefixFromMhid(mhid),
-          mhClass = childrenConstructors[prefix],
-          newObj;
-
-      if (prefix === null || typeof mhClass === 'undefined') {
-        (0, _debugHelpers.warn)('Error in MHObject.fetchByMhid', mhid, prefix, mhClass);
-        throw Error('Could not find correct class, unknown mhid: ' + mhid);
-      }
-
-      //console.log('fetching:', mhClass.rootEndpoint + '/' + mhid);
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: mhClass.rootEndpoint + '/' + mhid,
-        params: {
-          view: view
-        }
-      }).then(function (response) {
-        newObj = MHObject.create(response);
-        return newObj;
-      });
-    }
-
-    /**
-     * Children override
-     *
-     */
-
-  }, {
-    key: 'rootEndpointForMhid',
-
-
-    /**
-     * MHObject.rootEndpointForMhid(mhid)
-     *
-     * @param   { String } mhid - a valid MediaHound ID
-     * @return  { String } - the endpoint for MediaHound Type of mhid
-     *
-     */
-    value: function rootEndpointForMhid(mhid) {
-      if (typeof mhid !== 'string' && !(mhid instanceof String)) {
-        throw new TypeError('Mhid not of type string or undefined in rootEndpointForMhid');
-      }
-
-      var prefix = MHObject.getPrefixFromMhid(mhid),
-          mhClass = childrenConstructors[prefix];
-
-      if (prefix === null || typeof mhClass === 'undefined') {
-        (0, _debugHelpers.warn)('Error in MHObject.rootEndpointForMhid', mhid, prefix, mhClass);
-        throw new Error('Could not find correct class, unknown mhid: ' + mhid);
-      }
-
-      return mhClass.rootEndpoint;
-    }
-  }, {
-    key: 'rootSubendpoint',
-    value: function rootSubendpoint(sub) {
-      if (typeof sub !== 'string' && !(sub instanceof String)) {
-        throw new TypeError('Sub not of type string or undefined in (MHObject).rootSubendpoint.');
-      }
-      return this.rootEndpoint + '/' + sub;
-    }
-  }, {
-    key: 'rootResponseCacheKeyForPath',
-    value: function rootResponseCacheKeyForPath(path, params) {
-      return '___root_cached_' + path + '_' + JSON.stringify(params, function (k, v) {
-        if (k === 'view' || k === 'pageSize' || k === 'access_token') {
-          return undefined;
-        }
-        return v;
-      });
-    }
-  }, {
-    key: 'cachedRootResponseForPath',
-    value: function cachedRootResponseForPath(path, params) {
-      var cacheKey = this.rootResponseCacheKeyForPath(path, params);
-      return __cachedRootResponses[cacheKey];
-    }
-  }, {
-    key: 'setCachedRootResponse',
-    value: function setCachedRootResponse(response, path, params) {
-      var cacheKey = this.rootResponseCacheKeyForPath(path, params);
-      __cachedRootResponses[cacheKey] = response;
-    }
-  }, {
-    key: 'fetchRootPagedEndpoint',
-    value: function fetchRootPagedEndpoint(path, params, view, size, force) {
-      var _this4 = this;
-
-      var next = arguments.length <= 5 || arguments[5] === undefined ? null : arguments[5];
-
-      if (!force && !next) {
-        var cached = this.cachedRootResponseForPath(path, params);
-        if (cached) {
-          return cached;
-        }
-      }
-
-      var promise;
-      if (next) {
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          url: next
-        });
-      } else {
-        params.view = view;
-        params.pageSize = size;
-
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          endpoint: path,
-          params: params
-        });
-      }
-
-      var finalPromise = promise.then(function (response) {
-        var MHPagedResponse = require('../container/MHPagedResponse.js').default;
-        var pagedResponse = new MHPagedResponse(response);
-
-        pagedResponse.fetchNextOperation = function (newNext) {
-          return _this4.fetchRootPagedEndpoint(path, params, view, size, force, newNext);
-        };
-
-        return pagedResponse;
-      });
-
-      if (!next) {
-        this.setCachedRootResponse(finalPromise, path, params);
-      }
-
-      return finalPromise;
-    }
-  }, {
-    key: 'prefixes',
-    get: function get() {
-      return Object.keys(childrenConstructors);
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return null;
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return null;
-    }
-  }]);
-
-  return MHObject;
-}();
-
-exports.default = MHObject;
-},{"../../request/hound-request.js":106,"../action/MHAction.js":31,"../collection/MHCollection.js":39,"../container/MHPagedResponse.js":41,"../contributor/MHContributor.js":46,"../image/MHImage.js":52,"../internal/MHCache.js":54,"../internal/debug-helpers.js":55,"../internal/jsonParse.js":56,"../media/MHMedia.js":68,"../meta/MHMetadata.js":82,"../social/MHSocial.js":84,"../source/MHSource.js":85,"../trait/MHTrait.js":103,"../user/MHUser.js":105}],39:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _debugHelpers = require('../internal/debug-helpers.js');
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHAction = require('../action/MHAction.js');
-
-var _MHAction2 = _interopRequireDefault(_MHAction);
-
-var _MHLoginSession = require('../user/MHLoginSession.js');
-
-var _MHLoginSession2 = _interopRequireDefault(_MHLoginSession);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-/**
- * @classdesc Mediahound Collection Object (MHCollection) inherits from MHObject
- */
-
-var MHCollection = function (_MHObject) {
-  _inherits(MHCollection, _MHObject);
-
-  function MHCollection() {
-    _classCallCheck(this, MHCollection);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHCollection).apply(this, arguments));
-  }
-
-  _createClass(MHCollection, [{
-    key: 'editMetaData',
-
-
-    /**
-    * @param {string} name - the name of the new collection for the currently logged in user.
-    * @returns {Promise<MHCollection>} - a Promise that resolves to the newly created MHCollection
-    * @static
-    */
-    value: function editMetaData(name, description) {
-      var path = this.subendpoint('update'),
-          data = {};
-
-      if (description) {
-        data = {
-          'name': name,
-          'description': description
-        };
-      } else if (name) {
-        data = { 'name': name };
-      }
-
-      return (0, _houndRequest2.default)({
-        method: 'PUT',
-        endpoint: path,
-        data: data
-      }).then(function (response) {
-        return _MHObject3.default.fetchByMhid(response.metadata.mhid);
-      }).then(function (newCollection) {
-        if (_MHLoginSession2.default.openSession) {
-          _MHLoginSession2.default.currentUser.fetchOwnedCollections('full', 12, true);
-        }
-        return newCollection;
-      });
-    }
-    /**
-     * @param {MHMedia} - a MHMedia object to add to this collection
-     * @returns {Promise} - a promise that resolves to the new list of content for this MHCollection
-     */
-
-  }, {
-    key: 'addContent',
-    value: function addContent(content) {
-      return this.addContents([content]);
-    }
-
-    /**
-     * @param {Array<MHMedia>} - an Array of MHMedia objects to add to this collection
-     * @returns {Promise} - a promise that resolves to the new list of content for this MHCollection
-     */
-
-  }, {
-    key: 'addContents',
-    value: function addContents(contents) {
-      return this.changeContents(contents, 'add');
-    }
-
-    /**
-     * @param {MHMedia} - a MHMedia object to remove from this collection
-     * @returns {Promise} - a promise that resolves to the new list of content for this MHCollection
-     */
-
-  }, {
-    key: 'removeContent',
-    value: function removeContent(content) {
-      return this.removeContents([content]);
-    }
-
-    /**
-     * @param {Array<MHMedia>} - an Array of MHMedia objects to remove from this collection
-     * @returns {Promise} - a promise that resolves to the new list of content for this MHCollection
-     */
-
-  }, {
-    key: 'removeContents',
-    value: function removeContents(contents) {
-      return this.changeContents(contents, 'remove');
-    }
-
-    /**
-     * @private
-     * @param {Array<MHMedia>} - an Array of MHMedia objects to add or remove from this collection
-     * @param {string} sub - the subendpoint string, 'add' or 'remove'
-     * @returns {Promise} - a promise that resolves to the new list of content for this MHCollection
-     */
-
-  }, {
-    key: 'changeContents',
-    value: function changeContents(contents, sub) {
-      var _this2 = this;
-
-      if (!Array.isArray(contents)) {
-        throw new TypeError('Contents must be an array in changeContents');
-      }
-      if (typeof sub !== 'string' || sub !== 'add' && sub !== 'remove') {
-        throw new TypeError('Subendpoint must be add or remove');
-      }
-
-      var path = this.subendpoint(sub),
-          mhids = contents.map(function (v) {
-        if (v instanceof _MHObject3.default) {
-          if (!(v instanceof _MHAction2.default)) {
-            return v.mhid;
-          } else {
-            console.error('MHActions including like, favorite, create, and post cannot be collected. Please resubmit with actual content.');
-          }
-        } else if (typeof v === 'string' && _MHObject3.default.prefixes.indexOf(_MHObject3.default.getPrefixFromMhid(v)) > -1) {
-          // TODO double check this if statement
-          return v;
-        }
-        return null;
-      }).filter(function (v) {
-        return v !== null;
-      });
-
-      // invalidate mixlistPromise
-      this.mixlistPromise = null;
-      if (mhids.length > -1) {
-
-        (0, _debugHelpers.log)('content array to be submitted: ', mhids);
-
-        return this.content = (0, _houndRequest2.default)({
-          method: 'PUT',
-          endpoint: path,
-          data: {
-            'content': mhids
-          }
-        }).catch(function (err) {
-          _this2.content = null;throw err;
-        }.bind(this)).then(function (response) {
-          // fetch social for original passed in mhobjs
-          contents.forEach(function (v) {
-            return typeof v.fetchSocial === 'function' && v.fetchSocial(true);
-          });
-          return response;
-        });
-      } else {
-        console.error('To add or remove content from a Collection the content array must include at least one MHObject');
-      }
-    }
-
-    /**
-     * @param {boolean} force - whether to force a call to the server instead of using the cached ownersPromise
-     * @returns {Promise} - a promise that resolves to a list of mhids for the owners of this MHCollection
-     */
-
-  }, {
-    key: 'fetchOwners',
-    value: function fetchOwners() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('owners');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'fetchContent',
-    value: function fetchContent() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('content');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /**
-     * @param {boolean} force - whether to force a call to the server instead of using the cached mixlistPromise
-     * @returns {Promise} - a promise that resolves to the list of mixlist content for this MHCollection
-     */
-
-  }, {
-    key: 'fetchMixlist',
-    value: function fetchMixlist() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('mixlist');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHCollection.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHCollectionMetadata,
-        firstContentImage: { mapper: _MHObject3.default.create },
-        primaryOwner: { mapper: _MHObject3.default.create }
-      });
-    }
-
-    // Static Mixlist enums
-
-  }], [{
-    key: 'createWithName',
-
-
-    /**
-     * @param {string} name - the name of the new collection for the currently logged in user.
-     * @returns {Promise<MHCollection>} - a Promise that resolves to the newly created MHCollection
-     * @static
-     */
-    value: function createWithName(name, description) {
-      var path = this.rootSubendpoint('new');
-      var data = {};
-
-      if (name) {
-        data.name = name;
-      }
-      if (description) {
-        data.description = description;
-      }
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        data: data
-      }).then(function (response) {
-        return _MHObject3.default.fetchByMhid(response.metadata.mhid);
-      }).then(function (newCollection) {
-        if (_MHLoginSession2.default.openSession) {
-          _MHLoginSession2.default.currentUser.fetchOwnedCollections('full', 12, true);
-        }
-        return newCollection;
-      });
-    }
-  }, {
-    key: 'MIXLIST_TYPE_NONE',
-    get: function get() {
-      return 'none';
-    }
-  }, {
-    key: 'MIXLIST_TYPE_PARTIAL',
-    get: function get() {
-      return 'partial';
-    }
-  }, {
-    key: 'MIXLIST_TYPE_FULL',
-    get: function get() {
-      return 'full';
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhcol';
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/collection';
-    }
-  }]);
-
-  return MHCollection;
-}(_MHObject3.default);
-
-exports.default = MHCollection;
-
-
-_MHObject3.default.registerConstructor(MHCollection, 'MHCollection');
-},{"../../request/hound-request.js":106,"../action/MHAction.js":31,"../base/MHObject.js":38,"../internal/debug-helpers.js":55,"../meta/MHMetadata.js":82,"../user/MHLoginSession.js":104}],40:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _MHRelationship = require('./MHRelationship.js');
-
-var _MHRelationship2 = _interopRequireDefault(_MHRelationship);
-
-var _MHSorting = require('./MHSorting.js');
-
-var _MHSorting2 = _interopRequireDefault(_MHSorting);
-
-var _MHSourceMedium = require('../source/MHSourceMedium.js');
-
-var _MHSourceMedium2 = _interopRequireDefault(_MHSourceMedium);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHContext = function () {
-  function MHContext(args) {
-    _classCallCheck(this, MHContext);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHContext, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        consumable: Boolean,
-        sorting: _MHSorting2.default,
-        relationships: [_MHRelationship2.default],
-        mediums: [_MHSourceMedium2.default]
-      };
-    }
-  }]);
-
-  return MHContext;
-}();
-
-exports.default = MHContext;
-},{"../internal/jsonParse.js":56,"../source/MHSourceMedium.js":87,"./MHRelationship.js":44,"./MHSorting.js":45}],41:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _MHPagingInfo = require('./MHPagingInfo.js');
-
-var _MHPagingInfo2 = _interopRequireDefault(_MHPagingInfo);
-
-var _MHRelationalPair = require('./MHRelationalPair.js');
-
-var _MHRelationalPair2 = _interopRequireDefault(_MHRelationalPair);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHPagedResponse = function () {
-  function MHPagedResponse(args) {
-    _classCallCheck(this, MHPagedResponse);
-
-    this.cachedNextResponse = null;
-    this.fetchNextOperation = null;
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHPagedResponse, [{
-    key: 'fetchNext',
-    value: function fetchNext() {
-      var _this = this;
-
-      var cachedResponse = this.cachedNextResponse;
-      if (cachedResponse) {
-        return new Promise(function (resolve) {
-          resolve(cachedResponse);
-        });
-      }
-
-      return this.fetchNextOperation(this.pagingInfo.next).then(function (response) {
-        _this.cachedNextResponse = response;
-        return response;
-      });
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        content: [_MHRelationalPair2.default],
-        pagingInfo: _MHPagingInfo2.default
-      };
-    }
-  }, {
-    key: 'hasMorePages',
-    get: function get() {
-      return this.pagingInfo.next !== undefined && this.pagingInfo.next !== null;
-    }
-  }]);
-
-  return MHPagedResponse;
-}();
-
-exports.default = MHPagedResponse;
-},{"../internal/jsonParse.js":56,"./MHPagingInfo.js":42,"./MHRelationalPair.js":43}],42:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHPagingInfo = function () {
-  function MHPagingInfo(args) {
-    _classCallCheck(this, MHPagingInfo);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHPagingInfo, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        next: String
-      };
-    }
-  }]);
-
-  return MHPagingInfo;
-}();
-
-exports.default = MHPagingInfo;
-},{"../internal/jsonParse.js":56}],43:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHContext = require('./MHContext.js');
-
-var _MHContext2 = _interopRequireDefault(_MHContext);
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// MediaHound Relational Pair Object
-
-var MHRelationalPair = function () {
-  function MHRelationalPair(args) {
-    _classCallCheck(this, MHRelationalPair);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHRelationalPair, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        context: _MHContext2.default,
-        object: { mapper: _MHObject2.default.create }
-      };
-    }
-  }]);
-
-  return MHRelationalPair;
-}();
-
-exports.default = MHRelationalPair;
-},{"../base/MHObject.js":38,"../internal/jsonParse.js":56,"./MHContext.js":40}],44:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHRelationship = function () {
-  function MHRelationship(args) {
-    _classCallCheck(this, MHRelationship);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHRelationship, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        contribution: String,
-        role: String,
-        object: { mapper: _MHObject2.default.create }
-      };
-    }
-  }]);
-
-  return MHRelationship;
-}();
-
-exports.default = MHRelationship;
-},{"../base/MHObject.js":38,"../internal/jsonParse.js":56}],45:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHSorting = function () {
-  function MHSorting(args) {
-    _classCallCheck(this, MHSorting);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHSorting, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        importance: Number,
-        position: Number
-      };
-    }
-  }]);
-
-  return MHSorting;
-}();
-
-exports.default = MHSorting;
-},{"../internal/jsonParse.js":56}],46:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Contributor Object
-
-var MHContributor = function (_MHObject) {
-  _inherits(MHContributor, _MHObject);
-
-  function MHContributor() {
-    _classCallCheck(this, MHContributor);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHContributor).apply(this, arguments));
-  }
-
-  _createClass(MHContributor, [{
-    key: 'fetchMedia',
-
-
-    /*
-     * TODO DocJS
-     */
-    value: function fetchMedia() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('media');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHContributor.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHContributorMetadata
-      });
-    }
-
-    /*
-     * TODO DocJS
-     */
-
-  }, {
-    key: 'isGroup',
-    get: function get() {
-      return !this.isIndividual;
-    }
-
-    /*
-     * TODO DocJS
-     */
-
-  }, {
-    key: 'isFictional',
-    get: function get() {
-      return !this.isReal;
-    }
-  }], [{
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/contributor';
-    }
-  }]);
-
-  return MHContributor;
-}(_MHObject3.default);
-
-exports.default = MHContributor;
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],47:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHContributor2 = require('./MHContributor.js');
-
-var _MHContributor3 = _interopRequireDefault(_MHContributor2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Contributor Object
-
-var MHFictionalGroupContributor = function (_MHContributor) {
-  _inherits(MHFictionalGroupContributor, _MHContributor);
-
-  function MHFictionalGroupContributor() {
-    _classCallCheck(this, MHFictionalGroupContributor);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHFictionalGroupContributor).apply(this, arguments));
-  }
-
-  _createClass(MHFictionalGroupContributor, [{
-    key: 'isIndividual',
-    get: function get() {
-      return false;
-    }
-  }, {
-    key: 'isReal',
-    get: function get() {
-      return false;
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhfgc';
-    }
-  }]);
-
-  return MHFictionalGroupContributor;
-}(_MHContributor3.default);
-
-exports.default = MHFictionalGroupContributor;
-
-
-_MHObject2.default.registerConstructor(MHFictionalGroupContributor, 'MHFictionalGroupContributor');
-},{"../base/MHObject.js":38,"./MHContributor.js":46}],48:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHContributor2 = require('./MHContributor.js');
-
-var _MHContributor3 = _interopRequireDefault(_MHContributor2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Contributor Object
-
-var MHFictionalIndividualContributor = function (_MHContributor) {
-  _inherits(MHFictionalIndividualContributor, _MHContributor);
-
-  function MHFictionalIndividualContributor() {
-    _classCallCheck(this, MHFictionalIndividualContributor);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHFictionalIndividualContributor).apply(this, arguments));
-  }
-
-  _createClass(MHFictionalIndividualContributor, [{
-    key: 'isIndividual',
-    get: function get() {
-      return true;
-    }
-  }, {
-    key: 'isReal',
-    get: function get() {
-      return false;
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhfic';
-    }
-  }]);
-
-  return MHFictionalIndividualContributor;
-}(_MHContributor3.default);
-
-exports.default = MHFictionalIndividualContributor;
-
-
-_MHObject2.default.registerConstructor(MHFictionalIndividualContributor, 'MHFictionalIndividualContributor');
-},{"../base/MHObject.js":38,"./MHContributor.js":46}],49:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHContributor2 = require('./MHContributor.js');
-
-var _MHContributor3 = _interopRequireDefault(_MHContributor2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Contributor Object
-
-var MHRealGroupContributor = function (_MHContributor) {
-  _inherits(MHRealGroupContributor, _MHContributor);
-
-  function MHRealGroupContributor() {
-    _classCallCheck(this, MHRealGroupContributor);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHRealGroupContributor).apply(this, arguments));
-  }
-
-  _createClass(MHRealGroupContributor, [{
-    key: 'isIndividual',
-    get: function get() {
-      return false;
-    }
-  }, {
-    key: 'isReal',
-    get: function get() {
-      return true;
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhrgc';
-    }
-  }]);
-
-  return MHRealGroupContributor;
-}(_MHContributor3.default);
-
-exports.default = MHRealGroupContributor;
-
-
-_MHObject2.default.registerConstructor(MHRealGroupContributor, 'MHRealGroupContributor');
-},{"../base/MHObject.js":38,"./MHContributor.js":46}],50:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHContributor2 = require('./MHContributor.js');
-
-var _MHContributor3 = _interopRequireDefault(_MHContributor2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Contributor Object
-
-var MHRealIndividualContributor = function (_MHContributor) {
-  _inherits(MHRealIndividualContributor, _MHContributor);
-
-  function MHRealIndividualContributor() {
-    _classCallCheck(this, MHRealIndividualContributor);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHRealIndividualContributor).apply(this, arguments));
-  }
-
-  _createClass(MHRealIndividualContributor, [{
-    key: 'isIndividual',
-    get: function get() {
-      return true;
-    }
-  }, {
-    key: 'isReal',
-    get: function get() {
-      return true;
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhric';
-    }
-  }]);
-
-  return MHRealIndividualContributor;
-}(_MHContributor3.default);
-
-exports.default = MHRealIndividualContributor;
-
-
-_MHObject2.default.registerConstructor(MHRealIndividualContributor, 'MHRealIndividualContributor');
-},{"../base/MHObject.js":38,"./MHContributor.js":46}],51:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var MHHashtag = function (_MHObject) {
-  _inherits(MHHashtag, _MHObject);
-
-  function MHHashtag() {
-    _classCallCheck(this, MHHashtag);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHHashtag).apply(this, arguments));
-  }
-
-  _createClass(MHHashtag, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHHashtag.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHHashtagMetadata
-      });
-    }
-
-    /**
-    * MHHashtag.fetchByName(name,view,force)
-    *
-    * @param { String } username - Username to fetch info for
-    * @param { boolean} force - force fetch to server
-    *
-    * @return { Promise } - resolves to the MHUser object
-    *
-    */
-
-  }], [{
-    key: 'fetchByName',
-    value: function fetchByName(name) /*, force=false*/{
-      var view = arguments.length <= 1 || arguments[1] === undefined ? 'full' : arguments[1];
-
-      if (!name || typeof name !== 'string' && !(name instanceof String)) {
-        throw new TypeError('Hashtag not of type String in fetchByTag');
-      }
-
-      var path = this.rootSubendpoint('/lookup/' + name);
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path,
-        params: {
-          view: view
-        }
-      }).then(function (response) {
-        var newObj = _MHObject3.default.create(response);
-        return newObj;
-      });
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhhtg';
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/hashtag';
-    }
-  }]);
-
-  return MHHashtag;
-}(_MHObject3.default);
-
-exports.default = MHHashtag;
-
-
-_MHObject3.default.registerConstructor(MHHashtag, 'MHHashtag');
-},{"../../request/hound-request.js":106,"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],52:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var MHImage = function (_MHObject) {
-  _inherits(MHImage, _MHObject);
-
-  function MHImage() {
-    _classCallCheck(this, MHImage);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHImage).apply(this, arguments));
-  }
-
-  _createClass(MHImage, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHImage.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHImageMetadata
-      });
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhimg';
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/image';
-    }
-  }]);
-
-  return MHImage;
-}(_MHObject3.default);
-
-exports.default = MHImage;
-
-
-_MHObject3.default.registerConstructor(MHImage, 'MHImage');
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],53:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHImageData = function () {
-  function MHImageData(args) {
-    _classCallCheck(this, MHImageData);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHImageData, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        url: String,
-        width: Number,
-        height: Number
-      };
-    }
-  }]);
-
-  return MHImageData;
-}();
-
-exports.default = MHImageData;
-},{"../internal/jsonParse.js":56}],54:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }(); /*global System */
-
-var _debugHelpers = require('./debug-helpers.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-/**
- * A doubly linked list-based Least Recently Used (LRU) cache. Will keep most
- * recently used items while discarding least recently used items when its limit
- * is reached.
- *
- * Implementation inspired by:
- *    Rasmus Andersson <http://hunch.se/>
- *    https://github.com/rsms/js-lru
- *
- * Licensed under MIT. Copyright (c) 2014 MediaHound Inc. <http://mediahound.com/>
- *
- * Items are added to the end of the list, that means that the tail is the newest item
- * and the head is the oldest item.
- *
- * head(oldest) --.newer--> entry --.newer--> tail(newest)
- *    and
- * head(oldest) <--older.-- entry <--older.-- tail(newest)
- *
- */
-
-var keymapSym = Symbol('keymap');
-
-var MHCache = function () {
-  function MHCache(limit) {
-    _classCallCheck(this, MHCache);
-
-    // Current size of the cache.
-    this.size = 0;
-
-    // Maximum number of items this cache can hold.
-    this.limit = limit;
-    this[keymapSym] = {};
-  }
-
-  /**
-   * Put <value> into the cache associated with <key>. Returns the entry which was
-   * removed to make room for the new entry. Otherwise undefined is returned
-   * (i.e. if there was enough room already).
-   *
-   * TODO: Bug if put same value can get multiple instances of entry in list
-   */
-
-
-  _createClass(MHCache, [{
-    key: 'put',
-    value: function put(key, value, altId) {
-      var entry = { key: key, value: value, altId: altId };
-      (0, _debugHelpers.log)('putting: ', entry);
-      // Note: No protection against replacing, and thus orphan entries. By design.
-      this[keymapSym][key] = entry;
-
-      if (this.tail) {
-        // link previous tail to the new tail (entry)
-        this.tail.newer = entry;
-        entry.older = this.tail;
-      } else {
-        // we're first in -- yay
-        this.head = entry;
-      }
-      // add new entry to the end of the linked list -- it's now the freshest entry.
-      this.tail = entry;
-      if (this.size === this.limit) {
-        // we hit the limit -- remove the head
-        return this.shift();
-      } else {
-        // increase the size counter
-        this.size++;
-      }
-    }
-
-    // convenience for putting an MHObject
-
-  }, {
-    key: 'putMHObj',
-    value: function putMHObj(mhObj) {
-      if (mhObj && mhObj.metadata.mhid && mhObj.metadata.username) {
-        return this.put(mhObj.metadata.mhid, mhObj, mhObj.metadata.username);
-      }
-      if (mhObj && mhObj.metadata.mhid) {
-        return this.put(mhObj.metadata.mhid, mhObj, mhObj.metadata.altId);
-      }
-    }
-
-    /**
-     * Purge the least recently used (oldest) entry from the cache. Returns the
-     * removed entry or undefined if the cache was empty.
-     *
-     * If you need to perform any form of finalization of purged items, this is a
-     * good place to do it. Simply override/replace this function:
-     *
-     *   var c = new MHCache(123);
-     *   c.shift = function() {
-     *     var entry = MHCache.prototype.shift.call(this);
-     *     doSomethingWith(entry);
-     *     return entry;
-     *   }
-     */
-
-  }, {
-    key: 'shift',
-    value: function shift() {
-      // todo: handle special case when limit === 1
-      var entry = this.head;
-      if (entry) {
-        if (this.head.newer) {
-          this.head = this.head.newer;
-          this.head.older = undefined;
-        } else {
-          this.head = undefined;
-        }
-        // Remove last strong reference to <entry> and remove links from the purged
-        // entry being returned:
-        entry.newer = entry.older = undefined;
-        // delete is slow, but we need to do this to avoid uncontrollable growth:
-        delete this[keymapSym][entry.key];
-      }
-      return entry;
-    }
-
-    /**
-     * Get and register recent use of <key>. Returns the value associated with <key>
-     * or undefined if not in cache.
-     */
-
-  }, {
-    key: 'get',
-    value: function get(key) {
-      // First, find our cache entry
-      var entry = this[keymapSym][key];
-      if (entry === undefined) {
-        return;
-      } // Not cached. Sorry.
-      // As <key> was found in the cache, register it as being requested recently
-      if (entry === this.tail) {
-        // Already the most recently used entry, so no need to update the list
-        (0, _debugHelpers.log)('getting from cache (is tail): ', entry);
-        return entry.value;
-      }
-      // HEAD--------------TAIL
-      //   <.older   .newer>
-      //  <--- add direction --
-      //   A  B  C  <D>  E
-      if (entry.newer) {
-        if (entry === this.head) {
-          this.head = entry.newer;
-        }
-        entry.newer.older = entry.older; // C <-- E.
-      }
-      if (entry.older) {
-        entry.older.newer = entry.newer; // C. --> E
-      }
-      entry.newer = undefined; // D --x
-      entry.older = this.tail; // D. --> E
-      if (this.tail) {
-        this.tail.newer = entry; // E. <-- D
-      }
-      this.tail = entry;
-      (0, _debugHelpers.log)('getting from cache: ', entry);
-      return entry.value;
-    }
-
-    /**
-     *
-     * @param altId
-     * @returns {MHObject|undefined}
-     */
-
-  }, {
-    key: 'getByAltId',
-    value: function getByAltId(altId) {
-      var entry = this.tail;
-      while (entry) {
-        if (entry.altId === altId) {
-          (0, _debugHelpers.log)('found altId ' + altId + ', getting from cache');
-          return this.get(entry.key);
-        }
-        entry = entry.older;
-      }
-    }
-
-    /**
-     * Check if <key> is in the cache without registering recent use. Feasible if
-     * you do not want to change the state of the cache, but only 'peek' at it.
-     * Returns the entry associated with <key> if found, or undefined if not found.
-     */
-
-  }, {
-    key: 'find',
-    value: function find(key) {
-      return this[keymapSym][key];
-    }
-
-    /**
-     * Check if <key> is in the cache without registering recent use.
-     * Returns true if key exists.
-     */
-
-  }, {
-    key: 'has',
-    value: function has(key) {
-      return this[keymapSym][key] !== undefined;
-    }
-
-    /**
-     *
-     * @param altId
-     * @returns {boolean}
-     */
-
-  }, {
-    key: 'hasAltId',
-    value: function hasAltId(altId) {
-      var entry = this.tail;
-      while (entry) {
-        if (entry.altId === altId) {
-          return true;
-        }
-        entry = entry.older;
-      }
-      return false;
-    }
-
-    /**
-     * Remove entry <key> from cache and return its value. Returns undefined if not
-     * found.
-     */
-
-  }, {
-    key: 'remove',
-    value: function remove(key) {
-      var entry = this[keymapSym][key];
-      if (!entry) {
-        return;
-      }
-      delete this[keymapSym][entry.key];
-      if (entry.newer && entry.older) {
-        // link the older entry with the newer entry
-        entry.older.newer = entry.newer;
-        entry.newer.older = entry.older;
-      } else if (entry.newer) {
-        // remove the link to us
-        entry.newer.older = undefined;
-        // link the newer entry to head
-        this.head = entry.newer;
-      } else if (entry.older) {
-        // remove the link to us
-        entry.older.newer = undefined;
-        // link the newer entry to head
-        this.tail = entry.older;
-      } else {
-        this.head = this.tail = undefined;
-      }
-
-      this.size--;
-      return entry.value;
-    }
-
-    /** Removes all entries */
-
-  }, {
-    key: 'removeAll',
-    value: function removeAll() {
-      // This should be safe, as we never expose strong references to the outside
-      this.head = this.tail = undefined;
-      this.size = 0;
-      this[keymapSym] = {};
-    }
-
-    /**
-     * Get all keys stored in keymap
-     * Array returned is in an arbitrary order
-     */
-
-  }, {
-    key: 'keys',
-    value: function keys() {
-      return Object.keys(this[keymapSym]);
-    }
-  }, {
-    key: 'forEach',
-    value: function forEach(callback) {
-      if (typeof callback === 'function') {
-        var entry = this.head,
-            index = 0;
-        while (entry) {
-          callback(entry.value, index, this);
-          index++;
-          entry = entry.newer;
-        }
-      }
-    }
-
-    /**
-     * Create an array of stored objects and
-     * @param {string='mhLocalCache'} storageKey - key to save to local storage to
-     *
-     * save to localStorage
-     * objects are JSON.stringiy-ed with promise properties removed
-     *
-     */
-
-  }, {
-    key: 'saveToLocalStorage',
-    value: function saveToLocalStorage() {
-      var storageKey = arguments.length <= 0 || arguments[0] === undefined ? 'mhLocalCache' : arguments[0];
-
-      var arr = [];
-      var entry = this.head;
-      var replacer = function replacer(key, value) {
-        if (/promise|request/gi.test(key)) {
-          return;
-        }
-        return value;
-      };
-
-      (0, _debugHelpers.log)('saving to localStorage');
-      while (entry) {
-        (0, _debugHelpers.log)('adding to arry: ', JSON.stringify(entry.value, replacer));
-        arr.push(JSON.stringify(entry.value, replacer));
-        entry = entry.newer;
-      }
-      (0, _debugHelpers.log)('adding to localStorage: ', JSON.stringify(arr));
-      localStorage[storageKey] = JSON.stringify(arr);
-    }
-
-    /**
-     * Fill cache localStorage.mhLocalCache
-     * @param {string='mhLocalCache'} storageKey
-     */
-
-  }, {
-    key: 'restoreFromLocalStorage',
-    value: function restoreFromLocalStorage() {
-      var storageKey = arguments.length <= 0 || arguments[0] === undefined ? 'mhLocalCache' : arguments[0];
-
-      var MHObject = require('../base/MHObject.js').default;
-      //console.log('circular dep: ', MHObject);
-
-      if (!localStorage || typeof localStorage[storageKey] === 'undefined') {
-        (0, _debugHelpers.log)('nothing stored');
-        return;
-      }
-      var i = 0;
-      var curr = undefined;
-      conststored = JSON.parse(localStorage[storageKey]);
-
-      for (; i < stored.length; i++) {
-        curr = MHObject.create(stored[i]);
-        if (curr && !this.has(curr.metadata.mhid)) {
-          (0, _debugHelpers.log)('adding to cache: ', curr);
-          this.putMHObj(curr);
-        }
-      }
-    }
-  }]);
-
-  return MHCache;
-}();
-
-exports.default = MHCache;
-},{"../base/MHObject.js":38,"./debug-helpers.js":55}],55:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-// Logging Helper
-var debug = {
-  log: false,
-  warn: true, //( (/(local\.mediahound\.com:2014)|(stag-www\.mediahound\.com)/).test(window.location.host) ),
-  error: true //( (/(local\.mediahound\.com:2014)|(stag-www\.mediahound\.com)/).test(window.location.host) )
-};
-
-var isDevAndDebug = function isDevAndDebug() {
-
-  if (typeof window !== 'undefined') {
-    return window.mhDebug && window.location.host === 'local.mediahound.com:2014';
-  } else {
-    return false;
-  }
-};
-
-// TODO change so that log takes override and returns console function so that console shows correct line number
-var log = exports.log = function log(override) {
-  for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-    args[_key - 1] = arguments[_key];
-  }
-
-  if (typeof override !== 'boolean') {
-    args.unshift(override);
-    override = false;
-  }
-  if (console && console.log && (override || debug.log || isDevAndDebug())) {
-    console.log.apply(console, arguments);
-  }
-};
-
-/*
-export var log = function(...args) {
-  if (typeof args[0] !== 'boolean') {
-    return log(false);
-  }
-  if (console && console.log && ( args[0] || debug.log || isDevAndDebug() )) {
-    return console.log.bind(console);
-  }
-};
- */
-
-var warn = exports.warn = function warn(override) {
-  for (var _len2 = arguments.length, args = Array(_len2 > 1 ? _len2 - 1 : 0), _key2 = 1; _key2 < _len2; _key2++) {
-    args[_key2 - 1] = arguments[_key2];
-  }
-
-  if (typeof override !== 'boolean') {
-    args.unshift(override);
-    override = false;
-  }
-  if (console && console.warn && (override || debug.warn || isDevAndDebug())) {
-    console.warn.apply(console, args);
-  }
-};
-
-var error = exports.error = function error(override) {
-  for (var _len3 = arguments.length, args = Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
-    args[_key3 - 1] = arguments[_key3];
-  }
-
-  if (typeof override !== 'boolean') {
-    args.unshift(override);
-    override = false;
-  }
-  if (console && console.error && (override || debug.error || isDevAndDebug())) {
-    console.error.apply(console, args);
-  }
-};
-},{}],56:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
-
-var mapValueToType = function mapValueToType(rawValue, type) {
-  var initialValue = null;
-
-  if ((typeof type === 'undefined' ? 'undefined' : _typeof(type)) === 'object') {
-    if (type) {
-      if (type instanceof Array) {
-        var innerType = type[0];
-
-        if (rawValue !== null && rawValue !== undefined) {
-          initialValue = rawValue.map(function (v) {
-            try {
-              return mapValueToType(v, innerType);
-            } catch (e) {
-              console.log(e);
-              return v;
-            }
-          });
-        }
-      } else {
-        if (type.mapper && typeof type.mapper === 'function') {
-          initialValue = rawValue !== null && rawValue !== undefined ? type.mapper(rawValue) : null;
-        }
-      }
-    }
-  } else if (type === String) {
-    initialValue = rawValue !== null && rawValue !== undefined ? String(rawValue) : null;
-  } else if (type === Number) {
-    initialValue = rawValue !== null && rawValue !== undefined ? Number(rawValue) : null;
-
-    if (Number.isNaN(initialValue)) {
-      initialValue = null;
-    }
-  } else if (type === Boolean) {
-    initialValue = rawValue !== null && rawValue !== undefined ? Boolean(rawValue) : null;
-  } else if (type === Object) {
-    initialValue = rawValue || null;
-  } else if (type === Date) {
-    initialValue = new Date(rawValue * 1000);
-
-    if (isNaN(initialValue)) {
-      initialValue = null;
-    } else if (initialValue === 'Invalid Date') {
-      initialValue = null;
-    } else {
-      initialValue = new Date(initialValue.valueOf() + initialValue.getTimezoneOffset() * 60000);
-    }
-  } else if (typeof type === 'function') {
-    initialValue = rawValue !== null && rawValue !== undefined ? new type(rawValue) : null;
-  }
-
-  return initialValue;
-};
-
-var setPropertyFromArgs = function setPropertyFromArgs(args, obj, name, type, optional, merge) {
-  if (!obj[name]) {
-    var rawValue = args[name];
-    var convertedValue = mapValueToType(rawValue, type);
-
-    if (!optional && !convertedValue) {
-      throw TypeError('non-optional field `' + name + '` found null value. Args:', args);
-    }
-
-    if (convertedValue !== undefined) {
-      if (merge) {
-        obj[name] = convertedValue;
-      } else {
-        Object.defineProperty(obj, name, {
-          configurable: false,
-          enumerable: true,
-          writable: true,
-          value: convertedValue
-        });
-      }
-    }
-  }
-};
-
-var jsonParseArgs = function jsonParseArgs(args, obj, merge) {
-  var properties = obj.jsonProperties;
-  for (var name in properties) {
-    if (properties.hasOwnProperty(name)) {
-      var value = properties[name];
-
-      var optional = true;
-      var type;
-      if ((typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object') {
-        if (value.type !== undefined) {
-          type = value.type;
-        } else if (value.mapper !== undefined) {
-          type = value;
-        } else if (value instanceof Array) {
-          type = value;
-        }
-
-        if (value.optional !== undefined) {
-          optional = value.optional;
-        }
-      } else {
-        type = value;
-      }
-
-      setPropertyFromArgs(args, obj, name, type, optional, merge);
-    }
-  }
-};
-
-var jsonCreateWithArgs = exports.jsonCreateWithArgs = function jsonCreateWithArgs(args, obj) {
-  jsonParseArgs(args, obj, false);
-};
-
-var jsonMergeWithArgs = exports.jsonMergeWithArgs = function jsonMergeWithArgs(args, obj) {
-  jsonParseArgs(args, obj, true);
-};
-
-var jsonCreateFromArrayData = exports.jsonCreateFromArrayData = function jsonCreateFromArrayData(arr, type) {
-  return mapValueToType(arr, type);
-};
-},{}],57:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Album Object
-
-var MHAlbum = function (_MHMedia) {
-  _inherits(MHAlbum, _MHMedia);
-
-  function MHAlbum() {
-    _classCallCheck(this, MHAlbum);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAlbum).apply(this, arguments));
-  }
-
-  _createClass(MHAlbum, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhalb';
-    }
-  }]);
-
-  return MHAlbum;
-}(_MHMedia3.default);
-
-exports.default = MHAlbum;
-
-
-_MHObject2.default.registerConstructor(MHAlbum, 'MHAlbum');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],58:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Album Object
-
-var MHAlbumSeries = function (_MHMedia) {
-  _inherits(MHAlbumSeries, _MHMedia);
-
-  function MHAlbumSeries() {
-    _classCallCheck(this, MHAlbumSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAlbumSeries).apply(this, arguments));
-  }
-
-  _createClass(MHAlbumSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhals';
-    }
-  }]);
-
-  return MHAlbumSeries;
-}(_MHMedia3.default);
-
-exports.default = MHAlbumSeries;
-
-
-_MHObject2.default.registerConstructor(MHAlbumSeries, 'MHAlbumSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],59:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Anthology Object
-
-var MHAnthology = function (_MHMedia) {
-  _inherits(MHAnthology, _MHMedia);
-
-  function MHAnthology() {
-    _classCallCheck(this, MHAnthology);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAnthology).apply(this, arguments));
-  }
-
-  _createClass(MHAnthology, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhath';
-    }
-  }]);
-
-  return MHAnthology;
-}(_MHMedia3.default);
-
-exports.default = MHAnthology;
-
-
-_MHObject2.default.registerConstructor(MHAnthology, 'MHAnthology');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],60:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Book (Track) Object
-
-var MHBook = function (_MHMedia) {
-  _inherits(MHBook, _MHMedia);
-
-  function MHBook() {
-    _classCallCheck(this, MHBook);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHBook).apply(this, arguments));
-  }
-
-  _createClass(MHBook, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhbok';
-    }
-  }]);
-
-  return MHBook;
-}(_MHMedia3.default);
-
-exports.default = MHBook;
-
-
-_MHObject2.default.registerConstructor(MHBook, 'MHBook');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],61:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Book Series Object
-
-var MHBookSeries = function (_MHMedia) {
-  _inherits(MHBookSeries, _MHMedia);
-
-  function MHBookSeries() {
-    _classCallCheck(this, MHBookSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHBookSeries).apply(this, arguments));
-  }
-
-  _createClass(MHBookSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhbks';
-    }
-  }]);
-
-  return MHBookSeries;
-}(_MHMedia3.default);
-
-exports.default = MHBookSeries;
-
-
-_MHObject2.default.registerConstructor(MHBookSeries, 'MHBookSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],62:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Comic Book Object
-
-var MHComicBook = function (_MHMedia) {
-  _inherits(MHComicBook, _MHMedia);
-
-  function MHComicBook() {
-    _classCallCheck(this, MHComicBook);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHComicBook).apply(this, arguments));
-  }
-
-  _createClass(MHComicBook, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhcbk';
-    }
-  }]);
-
-  return MHComicBook;
-}(_MHMedia3.default);
-
-exports.default = MHComicBook;
-
-
-_MHObject2.default.registerConstructor(MHComicBook, 'MHComicBook');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],63:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Comic Book Series Object
-
-var MHComicBookSeries = function (_MHMedia) {
-  _inherits(MHComicBookSeries, _MHMedia);
-
-  function MHComicBookSeries() {
-    _classCallCheck(this, MHComicBookSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHComicBookSeries).apply(this, arguments));
-  }
-
-  _createClass(MHComicBookSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhcbs';
-    }
-  }]);
-
-  return MHComicBookSeries;
-}(_MHMedia3.default);
-
-exports.default = MHComicBookSeries;
-
-
-_MHObject2.default.registerConstructor(MHComicBookSeries, 'MHComicBookSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],64:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Game (Track) Object
-
-var MHGame = function (_MHMedia) {
-  _inherits(MHGame, _MHMedia);
-
-  function MHGame() {
-    _classCallCheck(this, MHGame);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGame).apply(this, arguments));
-  }
-
-  _createClass(MHGame, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgam';
-    }
-  }]);
-
-  return MHGame;
-}(_MHMedia3.default);
-
-exports.default = MHGame;
-
-
-_MHObject2.default.registerConstructor(MHGame, 'MHGame');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],65:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Game Series Object
-
-var MHGameSeries = function (_MHMedia) {
-  _inherits(MHGameSeries, _MHMedia);
-
-  function MHGameSeries() {
-    _classCallCheck(this, MHGameSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGameSeries).apply(this, arguments));
-  }
-
-  _createClass(MHGameSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgms';
-    }
-  }]);
-
-  return MHGameSeries;
-}(_MHMedia3.default);
-
-exports.default = MHGameSeries;
-
-
-_MHObject2.default.registerConstructor(MHGameSeries, 'MHGameSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],66:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Graphic Novel Object
-
-var MHGraphicNovel = function (_MHMedia) {
-  _inherits(MHGraphicNovel, _MHMedia);
-
-  function MHGraphicNovel() {
-    _classCallCheck(this, MHGraphicNovel);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGraphicNovel).apply(this, arguments));
-  }
-
-  _createClass(MHGraphicNovel, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgnl';
-    }
-  }]);
-
-  return MHGraphicNovel;
-}(_MHMedia3.default);
-
-exports.default = MHGraphicNovel;
-
-
-_MHObject2.default.registerConstructor(MHGraphicNovel, 'MHGraphicNovel');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],67:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Graphic Novel Series Object
-
-var MHGraphicNovelSeries = function (_MHMedia) {
-  _inherits(MHGraphicNovelSeries, _MHMedia);
-
-  function MHGraphicNovelSeries() {
-    _classCallCheck(this, MHGraphicNovelSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGraphicNovelSeries).apply(this, arguments));
-  }
-
-  _createClass(MHGraphicNovelSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgns';
-    }
-  }]);
-
-  return MHGraphicNovelSeries;
-}(_MHMedia3.default);
-
-exports.default = MHGraphicNovelSeries;
-
-
-_MHObject2.default.registerConstructor(MHGraphicNovelSeries, 'MHGraphicNovelSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],68:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHRelationalPair = require('../container/MHRelationalPair.js');
-
-var _MHRelationalPair2 = _interopRequireDefault(_MHRelationalPair);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Media Object
-
-var MHMedia = function (_MHObject) {
-  _inherits(MHMedia, _MHObject);
-
-  function MHMedia() {
-    _classCallCheck(this, MHMedia);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMedia).apply(this, arguments));
-  }
-
-  _createClass(MHMedia, [{
-    key: 'fetchContent',
-
-
-    /* TODO: DocJS
-    * mhMed.fetchContent()
-    *
-    * @param force { Boolean } - force refetch of content
-    * @return { Promise } - resolves to
-    *
-    */
-
-    value: function fetchContent() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('content');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /* TODO: DocJS
-     * mhMed.fetchSources()
-     *
-     * @param force { Boolean } - force refetch of content
-     * @return { Promise } - resolves to
-     *
-     */
-
-  }, {
-    key: 'fetchSources',
-    value: function fetchSources() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 20 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('sources');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /**
-    * mhObj.fetchContributors(mhid,force)
-    *
-    * @param { string='full' } view - the view needed to depict each MHObject that is returned
-    * @param { number=12     } size  - the number of items to return per page
-    * @param { Boolean=false } force
-    *
-    * @return { houndPagedRequest }  - MediaHound paged request object for this feed
-    *
-    */
-
-  }, {
-    key: 'fetchContributors',
-    value: function fetchContributors() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('contributors');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'fetchIVATrailer',
-    value: function fetchIVATrailer() {
-      var path = this.subendpoint('ivaTrailer');
-
-      var cached = this.cachedResponseForPath(path);
-      if (cached) {
-        return cached;
-      }
-
-      var promise = (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      });
-
-      this.setCachedResponse(promise, path);
-
-      return promise;
-    }
-
-    /**
-    * mhObj.fetchRelated(mhid,force)
-    *
-    * @param { string='full' } view - the view needed to depict each MHObject that is returned
-    * @param { number=0      } page - the zero indexed page number to return
-    * @param { number=12     } size  - the number of items to return per page
-    * @param { Boolean=false } force
-    *
-    * @return { houndPagedRequest }  - MediaHound paged request object for this feed
-    *
-    */
-
-  }, {
-    key: 'fetchRelated',
-    value: function fetchRelated() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('related');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'fetchShortestDistance',
-
-
-    /**
-    * mhObj.fetchShortestDistance(otherMhid)
-    *
-    * @param { otherMhid } otherMhid - the MHID for the object to calculate shortest path.
-    *
-    * @return { Number }  - Returns the shortest distance between the two objects.
-    *                       If there is no path between the two objects, returns `null`.
-    *
-    */
-    value: function fetchShortestDistance(otherMhid) {
-      var path = this.subendpoint('shortestPath/' + otherMhid);
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (response) {
-        // This method returns an array of shortest paths.
-        // Since we only care about the length, we can look at the first
-        // shortest path and calculate its length.
-        // The path includes both the start and mhid.
-        // We do not count the start as a 'step', so we subtract one.
-        return response.paths[0].path.length - 1;
-      }).catch(function (err) {
-        if (err.xhr.status === 404) {
-          // A 404 indicates there is no path between the two nodes.
-          return null;
-        } else {
-          throw err;
-        }
-      });
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHMedia.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHMediaMetadata,
-        keyContributors: [_MHRelationalPair2.default],
-        primaryGroup: _MHRelationalPair2.default
-      });
-    }
-  }], [{
-    key: 'fetchRelatedTo',
-    value: function fetchRelatedTo(medias) {
-      var filters = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
-      var view = arguments.length <= 2 || arguments[2] === undefined ? 'full' : arguments[2];
-      var size = arguments.length <= 3 || arguments[3] === undefined ? 12 : arguments[3];
-      var force = arguments.length <= 4 || arguments[4] === undefined ? false : arguments[4];
-
-      var factors = medias.map(function (m) {
-        if (typeof m === 'string' || m instanceof String) {
-          return m;
-        } else if ('metadata' in m) {
-          return m.metadata.mhid;
-        } else {
-          return m;
-        }
-      });
-      var path = this.rootSubendpoint('related');
-      var params = {
-        factors: JSON.stringify(factors),
-        filters: JSON.stringify(filters)
-      };
-
-      return this.fetchRootPagedEndpoint(path, params, view, size, force);
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/media';
-    }
-  }]);
-
-  return MHMedia;
-}(_MHObject3.default);
-
-exports.default = MHMedia;
-},{"../../request/hound-request.js":106,"../base/MHObject.js":38,"../container/MHRelationalPair.js":43,"../meta/MHMetadata.js":82}],69:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Movie Object
-
-var MHMovie = function (_MHMedia) {
-  _inherits(MHMovie, _MHMedia);
-
-  function MHMovie() {
-    _classCallCheck(this, MHMovie);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMovie).apply(this, arguments));
-  }
-
-  _createClass(MHMovie, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhmov';
-    }
-  }]);
-
-  return MHMovie;
-}(_MHMedia3.default);
-
-exports.default = MHMovie;
-
-
-_MHObject2.default.registerConstructor(MHMovie, 'MHMovie');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],70:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Movie Series Object
-
-var MHMovieSeries = function (_MHMedia) {
-  _inherits(MHMovieSeries, _MHMedia);
-
-  function MHMovieSeries() {
-    _classCallCheck(this, MHMovieSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMovieSeries).apply(this, arguments));
-  }
-
-  _createClass(MHMovieSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhmvs';
-    }
-  }]);
-
-  return MHMovieSeries;
-}(_MHMedia3.default);
-
-exports.default = MHMovieSeries;
-
-
-_MHObject2.default.registerConstructor(MHMovieSeries, 'MHMovieSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],71:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Music Video Object
-
-var MHMusicVideo = function (_MHMedia) {
-  _inherits(MHMusicVideo, _MHMedia);
-
-  function MHMusicVideo() {
-    _classCallCheck(this, MHMusicVideo);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMusicVideo).apply(this, arguments));
-  }
-
-  _createClass(MHMusicVideo, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhmsv';
-    }
-  }]);
-
-  return MHMusicVideo;
-}(_MHMedia3.default);
-
-exports.default = MHMusicVideo;
-
-
-_MHObject2.default.registerConstructor(MHMusicVideo, 'MHMusicVideo');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],72:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Novella Object
-
-var MHNovella = function (_MHMedia) {
-  _inherits(MHNovella, _MHMedia);
-
-  function MHNovella() {
-    _classCallCheck(this, MHNovella);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHNovella).apply(this, arguments));
-  }
-
-  _createClass(MHNovella, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhnov';
-    }
-  }]);
-
-  return MHNovella;
-}(_MHMedia3.default);
-
-exports.default = MHNovella;
-
-
-_MHObject2.default.registerConstructor(MHNovella, 'MHNovella');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],73:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Periodical Object
-
-var MHPeriodical = function (_MHMedia) {
-  _inherits(MHPeriodical, _MHMedia);
-
-  function MHPeriodical() {
-    _classCallCheck(this, MHPeriodical);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHPeriodical).apply(this, arguments));
-  }
-
-  _createClass(MHPeriodical, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhpdc';
-    }
-  }]);
-
-  return MHPeriodical;
-}(_MHMedia3.default);
-
-exports.default = MHPeriodical;
-
-
-_MHObject2.default.registerConstructor(MHPeriodical, 'MHPeriodical');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],74:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Periodical Series Object
-
-var MHPeriodicalSeries = function (_MHMedia) {
-  _inherits(MHPeriodicalSeries, _MHMedia);
-
-  function MHPeriodicalSeries() {
-    _classCallCheck(this, MHPeriodicalSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHPeriodicalSeries).apply(this, arguments));
-  }
-
-  _createClass(MHPeriodicalSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhpds';
-    }
-  }]);
-
-  return MHPeriodicalSeries;
-}(_MHMedia3.default);
-
-exports.default = MHPeriodicalSeries;
-
-
-_MHObject2.default.registerConstructor(MHPeriodicalSeries, 'MHPeriodicalSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],75:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound ShowEpisode Object
-
-var MHShowEpisode = function (_MHMedia) {
-  _inherits(MHShowEpisode, _MHMedia);
-
-  function MHShowEpisode() {
-    _classCallCheck(this, MHShowEpisode);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHShowEpisode).apply(this, arguments));
-  }
-
-  _createClass(MHShowEpisode, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsep';
-    }
-  }]);
-
-  return MHShowEpisode;
-}(_MHMedia3.default);
-
-exports.default = MHShowEpisode;
-
-
-_MHObject2.default.registerConstructor(MHShowEpisode, 'MHShowEpisode');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],76:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound ShowSeason (Track) Object
-
-var MHShowSeason = function (_MHMedia) {
-  _inherits(MHShowSeason, _MHMedia);
-
-  function MHShowSeason() {
-    _classCallCheck(this, MHShowSeason);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHShowSeason).apply(this, arguments));
-  }
-
-  _createClass(MHShowSeason, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhssn';
-    }
-  }]);
-
-  return MHShowSeason;
-}(_MHMedia3.default);
-
-exports.default = MHShowSeason;
-
-
-_MHObject2.default.registerConstructor(MHShowSeason, 'MHShowSeason');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],77:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound ShowSeries (Track) Object
-
-var MHShowSeries = function (_MHMedia) {
-  _inherits(MHShowSeries, _MHMedia);
-
-  function MHShowSeries() {
-    _classCallCheck(this, MHShowSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHShowSeries).apply(this, arguments));
-  }
-
-  _createClass(MHShowSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsss';
-    }
-  }]);
-
-  return MHShowSeries;
-}(_MHMedia3.default);
-
-exports.default = MHShowSeries;
-
-
-_MHObject2.default.registerConstructor(MHShowSeries, 'MHShowSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],78:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Special Media Object
-// TV Special is the most common use case
-
-var MHSpecial = function (_MHMedia) {
-  _inherits(MHSpecial, _MHMedia);
-
-  function MHSpecial() {
-    _classCallCheck(this, MHSpecial);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSpecial).apply(this, arguments));
-  }
-
-  _createClass(MHSpecial, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhspc';
-    }
-  }]);
-
-  return MHSpecial;
-}(_MHMedia3.default);
-
-exports.default = MHSpecial;
-
-
-_MHObject2.default.registerConstructor(MHSpecial, 'MHSpecial');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],79:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Special Series Object
-
-var MHSpecialSeries = function (_MHMedia) {
-  _inherits(MHSpecialSeries, _MHMedia);
-
-  function MHSpecialSeries() {
-    _classCallCheck(this, MHSpecialSeries);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSpecialSeries).apply(this, arguments));
-  }
-
-  _createClass(MHSpecialSeries, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsps';
-    }
-  }]);
-
-  return MHSpecialSeries;
-}(_MHMedia3.default);
-
-exports.default = MHSpecialSeries;
-
-
-_MHObject2.default.registerConstructor(MHSpecialSeries, 'MHSpecialSeries');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],80:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Track Object
-
-var MHTrack = function (_MHMedia) {
-  _inherits(MHTrack, _MHMedia);
-
-  function MHTrack() {
-    _classCallCheck(this, MHTrack);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHTrack).apply(this, arguments));
-  }
-
-  _createClass(MHTrack, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsng';
-    }
-  }]);
-
-  return MHTrack;
-}(_MHMedia3.default);
-
-exports.default = MHTrack;
-
-
-_MHObject2.default.registerConstructor(MHTrack, 'MHTrack');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],81:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHMedia2 = require('./MHMedia.js');
-
-var _MHMedia3 = _interopRequireDefault(_MHMedia2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trailer Object
-
-var MHTrailer = function (_MHMedia) {
-  _inherits(MHTrailer, _MHMedia);
-
-  function MHTrailer() {
-    _classCallCheck(this, MHTrailer);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHTrailer).apply(this, arguments));
-  }
-
-  _createClass(MHTrailer, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhtrl';
-    }
-  }]);
-
-  return MHTrailer;
-}(_MHMedia3.default);
-
-exports.default = MHTrailer;
-
-
-_MHObject2.default.registerConstructor(MHTrailer, 'MHTrailer');
-},{"../base/MHObject.js":38,"./MHMedia.js":68}],82:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.MHTraitMetadata = exports.MHHashtagMetadata = exports.MHContributorMetadata = exports.MHSourceMetadata = exports.MHSubscriptionMetadata = exports.MHImageMetadata = exports.MHActionMetadata = exports.MHCollectionMetadata = exports.MHUserMetadata = exports.MHMediaMetadata = exports.MHMetadata = undefined;
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHImageData = require('../image/MHImageData.js');
-
-var _MHImageData2 = _interopRequireDefault(_MHImageData);
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHMetadata = exports.MHMetadata = function () {
-  function MHMetadata(args) {
-    _classCallCheck(this, MHMetadata);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        mhid: { type: String, optional: false },
-        altId: String,
-        name: String,
-        description: String,
-        createdDate: Date
-      };
-    }
-  }]);
-
-  return MHMetadata;
-}();
-
-var MHMediaMetadata = exports.MHMediaMetadata = function (_MHMetadata) {
-  _inherits(MHMediaMetadata, _MHMetadata);
-
-  function MHMediaMetadata() {
-    _classCallCheck(this, MHMediaMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMediaMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHMediaMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHMediaMetadata.prototype), 'jsonProperties', this), {
-        releaseDate: Date
-      });
-    }
-  }]);
-
-  return MHMediaMetadata;
-}(MHMetadata);
-
-var MHUserMetadata = exports.MHUserMetadata = function (_MHMetadata2) {
-  _inherits(MHUserMetadata, _MHMetadata2);
-
-  function MHUserMetadata() {
-    _classCallCheck(this, MHUserMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHUserMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHUserMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHUserMetadata.prototype), 'jsonProperties', this), {
-        username: { type: String, optional: false },
-        email: String
-      });
-    }
-  }]);
-
-  return MHUserMetadata;
-}(MHMetadata);
-
-var MHCollectionMetadata = exports.MHCollectionMetadata = function (_MHMetadata3) {
-  _inherits(MHCollectionMetadata, _MHMetadata3);
-
-  function MHCollectionMetadata() {
-    _classCallCheck(this, MHCollectionMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHCollectionMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHCollectionMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHCollectionMetadata.prototype), 'jsonProperties', this), {
-        mixlist: String
-      });
-    }
-  }]);
-
-  return MHCollectionMetadata;
-}(MHMetadata);
-
-var MHActionMetadata = exports.MHActionMetadata = function (_MHMetadata4) {
-  _inherits(MHActionMetadata, _MHMetadata4);
-
-  function MHActionMetadata() {
-    _classCallCheck(this, MHActionMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHActionMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHActionMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHActionMetadata.prototype), 'jsonProperties', this), {
-        message: String
-      });
-    }
-  }]);
-
-  return MHActionMetadata;
-}(MHMetadata);
-
-var MHImageMetadata = exports.MHImageMetadata = function (_MHMetadata5) {
-  _inherits(MHImageMetadata, _MHMetadata5);
-
-  function MHImageMetadata() {
-    _classCallCheck(this, MHImageMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHImageMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHImageMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHImageMetadata.prototype), 'jsonProperties', this), {
-        isDefault: Boolean,
-        averageColor: String,
-        thumbnail: _MHImageData2.default,
-        small: _MHImageData2.default,
-        medium: _MHImageData2.default,
-        large: _MHImageData2.default,
-        original: _MHImageData2.default
-      });
-    }
-  }]);
-
-  return MHImageMetadata;
-}(MHMetadata);
-
-var MHSubscriptionMetadata = exports.MHSubscriptionMetadata = function (_MHMetadata6) {
-  _inherits(MHSubscriptionMetadata, _MHMetadata6);
-
-  function MHSubscriptionMetadata() {
-    _classCallCheck(this, MHSubscriptionMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSubscriptionMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHSubscriptionMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHSubscriptionMetadata.prototype), 'jsonProperties', this), {
-        timePeriod: String,
-        price: String,
-        currency: String,
-        mediums: String
-      });
-    }
-  }]);
-
-  return MHSubscriptionMetadata;
-}(MHMetadata);
-
-var MHSourceMetadata = exports.MHSourceMetadata = function (_MHMetadata7) {
-  _inherits(MHSourceMetadata, _MHMetadata7);
-
-  function MHSourceMetadata() {
-    _classCallCheck(this, MHSourceMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSourceMetadata).apply(this, arguments));
-  }
-
-  _createClass(MHSourceMetadata, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHSourceMetadata.prototype), 'jsonProperties', this), {
-        connectable: Boolean
-      });
-    }
-  }]);
-
-  return MHSourceMetadata;
-}(MHMetadata);
-
-var MHContributorMetadata = exports.MHContributorMetadata = function (_MHMetadata8) {
-  _inherits(MHContributorMetadata, _MHMetadata8);
-
-  function MHContributorMetadata() {
-    _classCallCheck(this, MHContributorMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHContributorMetadata).apply(this, arguments));
-  }
-
-  return MHContributorMetadata;
-}(MHMetadata);
-
-var MHHashtagMetadata = exports.MHHashtagMetadata = function (_MHMetadata9) {
-  _inherits(MHHashtagMetadata, _MHMetadata9);
-
-  function MHHashtagMetadata() {
-    _classCallCheck(this, MHHashtagMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHHashtagMetadata).apply(this, arguments));
-  }
-
-  return MHHashtagMetadata;
-}(MHMetadata);
-
-var MHTraitMetadata = exports.MHTraitMetadata = function (_MHMetadata10) {
-  _inherits(MHTraitMetadata, _MHMetadata10);
-
-  function MHTraitMetadata() {
-    _classCallCheck(this, MHTraitMetadata);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHTraitMetadata).apply(this, arguments));
-  }
-
-  return MHTraitMetadata;
-}(MHMetadata);
-},{"../image/MHImageData.js":53,"../internal/jsonParse.js":56}],83:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var _MHAccessToken = null;
-var _MHUserAccessToken = null;
-var _MHClientId = null;
-var _MHClientSecret = null;
-
-var _houndOrigin = 'https://api.mediahound.com/';
-
-// Use btoa from a browser or shim it in Node with base64.
-var _btoa;
-if (typeof window !== 'undefined') {
-  _btoa = window.btoa;
-} else if (typeof window === 'undefined') {
-  _btoa = require('base-64').encode;
-}
-
-var MHSDK = function () {
-  function MHSDK() {
-    _classCallCheck(this, MHSDK);
-  }
-
-  _createClass(MHSDK, null, [{
-    key: 'configure',
-
-
-    /**
-     * MHSDK.create(clientId, clientSecret)
-     * Configures the MediaHound SDK with an OAuth clientId and clientSecret.
-     *
-     * @param   clientId <String> - OAuth Client Identifier
-     * @param   clientSecret <String> - OAuth Client Secret
-     * @param   origin <String> - (Optional) MediaHound network origin.
-     * @returns <Promise> - A promise that resolves when the configuration is complete.
-     */
-    value: function configure(clientId, clientSecret, origin) {
-      _MHClientId = clientId;
-      _MHClientSecret = clientSecret;
-      if (origin) {
-        _houndOrigin = origin;
-      }
-
-      return this.refreshOAuthToken();
-    }
-  }, {
-    key: 'configureWithAccessToken',
-    value: function configureWithAccessToken(accessToken, origin) {
-      _MHClientId = null;
-      _MHClientSecret = null;
-      if (origin) {
-        _houndOrigin = origin;
-      }
-
-      _MHAccessToken = accessToken;
-    }
-  }, {
-    key: 'authHeaders',
-    value: function authHeaders() {
-      return _btoa(_MHClientId + ':' + _MHClientSecret);
-    }
-  }, {
-    key: 'refreshOAuthToken',
-    value: function refreshOAuthToken() {
-      var houndRequest = require('../../request/hound-request.js').default;
-
-      var auth = this.authHeaders();
-
-      return houndRequest({
-        method: 'POST',
-        useForms: true,
-        endpoint: 'security/oauth/token',
-        data: {
-          client_id: _MHClientId,
-          client_secret: _MHClientSecret,
-          grant_type: 'client_credentials',
-          scope: 'public_profile'
-        },
-        headers: {
-          Authorization: 'Basic ' + auth
-        }
-      }).then(function (response) {
-        _MHAccessToken = response.access_token;
-      });
-    }
-  }, {
-    key: '_setUserAccessToken',
-    value: function _setUserAccessToken(accessToken) {
-      _MHUserAccessToken = accessToken;
-    }
-  }, {
-    key: 'MHAccessToken',
-    get: function get() {
-      if (_MHUserAccessToken) {
-        return _MHUserAccessToken;
-      }
-      return _MHAccessToken;
-    }
-  }, {
-    key: 'clientId',
-    get: function get() {
-      return _MHClientId;
-    }
-  }, {
-    key: 'clientSecret',
-    get: function get() {
-      return _MHClientSecret;
-    }
-  }, {
-    key: 'origin',
-    get: function get() {
-      return _houndOrigin;
-    }
-  }, {
-    key: 'apiVersion',
-    get: function get() {
-      return '1.2';
-    }
-  }]);
-
-  return MHSDK;
-}();
-
-exports.default = MHSDK;
-},{"../../request/hound-request.js":106,"base-64":1}],84:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// MediaHound Social Object
-
-var MHSocial = function () {
-  function MHSocial(args) {
-    _classCallCheck(this, MHSocial);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  /**
-   * TODO maybe just do a this[prop] === other[prop] check
-   * @param {MHSocial} otherObj - another MHSocial object to check against
-   * @returns {boolean}
-   */
-
-
-  _createClass(MHSocial, [{
-    key: 'isEqualToMHSocial',
-    value: function isEqualToMHSocial(otherObj) {
-      var _iteratorNormalCompletion = true;
-      var _didIteratorError = false;
-      var _iteratorError = undefined;
-
-      try {
-        for (var _iterator = Object.keys(this.jsonProperties)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var prop = _step.value;
-
-          if (typeof this[prop] === 'number' && typeof otherObj[prop] === 'number' && this[prop] === otherObj[prop]) {
-            continue;
-          } else if (!this[prop] && !otherObj[prop]) {
-            continue;
-          }
-          return false;
-        }
-      } catch (err) {
-        _didIteratorError = true;
-        _iteratorError = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion && _iterator.return) {
-            _iterator.return();
-          }
-        } finally {
-          if (_didIteratorError) {
-            throw _iteratorError;
-          }
-        }
-      }
-
-      return true;
-    }
-
-    /**
-     * Returns a new social object with the expected change of a given action
-     * @private
-     * @param action - MHSocial.ACTION to take on this social object
-     * @returns {MHSocial} - A new MHSocial object that represents the expected outcome
-     */
-
-  }, {
-    key: 'newWithAction',
-    value: function newWithAction(action) {
-      var newValue,
-          toChange,
-          alsoFlip,
-          newArgs = {};
-
-      switch (action) {
-        case MHSocial.LIKE:
-          toChange = 'likers';
-          newValue = this.likers + 1;
-          alsoFlip = 'userLikes';
-          break;
-        case MHSocial.UNLIKE:
-          toChange = 'likers';
-          newValue = this.likers - 1;
-          alsoFlip = 'userLikes';
-          break;
-        case MHSocial.DISLIKE:
-        case MHSocial.UNDISLIKE:
-          alsoFlip = 'userDislikes';
-          break;
-        case MHSocial.FOLLOW:
-          toChange = 'followers';
-          newValue = this.followers + 1;
-          alsoFlip = 'userFollows';
-          break;
-        case MHSocial.UNFOLLOW:
-          toChange = 'followers';
-          newValue = this.followers - 1;
-          alsoFlip = 'userFollows';
-          break;
-        case MHSocial.COLLECT:
-          toChange = 'collectors';
-          newValue = this.collectors + 1;
-          break;
-        default:
-          break;
-      }
-
-      var _iteratorNormalCompletion2 = true;
-      var _didIteratorError2 = false;
-      var _iteratorError2 = undefined;
-
-      try {
-        for (var _iterator2 = Object.keys(this.jsonProperties)[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-          var prop = _step2.value;
-
-          if (prop === toChange) {
-            newArgs[prop] = newValue;
-          } else if (prop === alsoFlip) {
-            newArgs[prop] = !this[prop];
-          } else {
-            newArgs[prop] = this[prop];
-          }
-        }
-      } catch (err) {
-        _didIteratorError2 = true;
-        _iteratorError2 = err;
-      } finally {
-        try {
-          if (!_iteratorNormalCompletion2 && _iterator2.return) {
-            _iterator2.return();
-          }
-        } finally {
-          if (_didIteratorError2) {
-            throw _iteratorError2;
-          }
-        }
-      }
-
-      return new MHSocial(newArgs);
-    }
-
-    /**
-     * Social Action Types
-     *
-     */
-
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        'likers': Number,
-        'followers': Number,
-        'collectors': Number,
-        'mentioners': Number,
-        'following': Number,
-        'ownedCollections': Number,
-        'items': Number,
-        'userLikes': Boolean,
-        'userDislikes': Boolean,
-        'userFollows': Boolean,
-        'isFeatured': Boolean,
-        'userConnected': Boolean,
-        'userPreference': Boolean
-      };
-    }
-  }], [{
-    key: 'LIKE',
-    get: function get() {
-      return 'like';
-    }
-  }, {
-    key: 'UNLIKE',
-    get: function get() {
-      return 'unlike';
-    }
-  }, {
-    key: 'DISLIKE',
-    get: function get() {
-      return 'dislike';
-    }
-  }, {
-    key: 'UNDISLIKE',
-    get: function get() {
-      return 'undislike';
-    }
-  }, {
-    key: 'FOLLOW',
-    get: function get() {
-      return 'follow';
-    }
-  }, {
-    key: 'UNFOLLOW',
-    get: function get() {
-      return 'unfollow';
-    }
-  }, {
-    key: 'SOCIAL_ACTIONS',
-    get: function get() {
-      return [MHSocial.LIKE, MHSocial.UNLIKE, MHSocial.DISLIKE, MHSocial.UNDISLIKE, MHSocial.FOLLOW, MHSocial.UNFOLLOW];
-    }
-  }, {
-    key: 'POST',
-    get: function get() {
-      return 'post';
-    }
-  }, {
-    key: 'COLLECT',
-    get: function get() {
-      return 'collect';
-    }
-  }, {
-    key: 'COMMENT',
-    get: function get() {
-      return 'comment';
-    }
-  }]);
-
-  return MHSocial;
-}();
-
-exports.default = MHSocial;
-},{"../internal/jsonParse.js":56}],85:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Source Master Object
-
-var MHSource = function (_MHObject) {
-  _inherits(MHSource, _MHObject);
-
-  function MHSource() {
-    _classCallCheck(this, MHSource);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSource).apply(this, arguments));
-  }
-
-  _createClass(MHSource, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHSource.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHSourceMetadata,
-        subscriptions: [{ mapper: _MHObject3.default.create }] // TODO: It would be nicer to be able to just say [MHSubscription]
-      });
-    }
-  }], [{
-    key: 'fetchAllSources',
-    value: function fetchAllSources() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 100 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.rootSubendpoint('all');
-      return this.fetchRootPagedEndpoint(path, {}, view, size, force);
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/source';
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsrc';
-    }
-  }]);
-
-  return MHSource;
-}(_MHObject3.default);
-
-exports.default = MHSource;
-
-
-_MHObject3.default.registerConstructor(MHSource, 'MHSource');
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],86:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// MediaHound SourceFormat Object
-
-var MHSourceFormat = function () {
-  function MHSourceFormat(args) {
-    _classCallCheck(this, MHSourceFormat);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHSourceFormat, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        type: String,
-        price: String,
-        currency: String,
-        timePeriod: String,
-        launchInfo: Object,
-        contentCount: Number
-      };
-    }
-  }, {
-    key: 'displayPrice',
-    get: function get() {
-      return '$' + this.price;
-    }
-  }]);
-
-  return MHSourceFormat;
-}();
-
-exports.default = MHSourceFormat;
-},{"../internal/jsonParse.js":56}],87:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _MHSourceMethod = require('./MHSourceMethod.js');
-
-var _MHSourceMethod2 = _interopRequireDefault(_MHSourceMethod);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// MediaHound SourceMedium Object
-
-var MHSourceMedium = function () {
-  function MHSourceMedium(args) {
-    _classCallCheck(this, MHSourceMedium);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHSourceMedium, [{
-    key: 'methodForType',
-    value: function methodForType(type) {
-      return this.methods.filter(function (method) {
-        return method.type === type;
-      })[0];
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        type: String,
-        methods: [_MHSourceMethod2.default]
-      };
-    }
-  }], [{
-    key: 'TYPE_STREAM',
-    get: function get() {
-      return 'stream';
-    }
-  }, {
-    key: 'TYPE_DOWNLOAD',
-    get: function get() {
-      return 'download';
-    }
-  }, {
-    key: 'TYPE_DELIVER',
-    get: function get() {
-      return 'deliver';
-    }
-  }, {
-    key: 'TYPE_PICKUP',
-    get: function get() {
-      return 'pickup';
-    }
-  }, {
-    key: 'TYPE_ATTEND',
-    get: function get() {
-      return 'attend';
-    }
-  }]);
-
-  return MHSourceMedium;
-}();
-
-exports.default = MHSourceMedium;
-},{"../internal/jsonParse.js":56,"./MHSourceMethod.js":88}],88:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _jsonParse = require('../internal/jsonParse.js');
-
-var _MHSourceFormat = require('./MHSourceFormat.js');
-
-var _MHSourceFormat2 = _interopRequireDefault(_MHSourceFormat);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// MediaHound SourceMethod Object
-
-var MHSourceMethod = function () {
-  function MHSourceMethod(args) {
-    _classCallCheck(this, MHSourceMethod);
-
-    (0, _jsonParse.jsonCreateWithArgs)(args, this);
-  }
-
-  _createClass(MHSourceMethod, [{
-    key: 'formatForType',
-    value: function formatForType(type) {
-      return this.formats.filter(function (format) {
-        return format.type === type;
-      })[0];
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return {
-        type: String,
-        formats: [_MHSourceFormat2.default]
-      };
-    }
-  }], [{
-    key: 'TYPE_PURCHASE',
-    get: function get() {
-      return 'purchase';
-    }
-  }, {
-    key: 'TYPE_RENTAL',
-    get: function get() {
-      return 'rental';
-    }
-  }, {
-    key: 'TYPE_SUBSCRIPTION',
-    get: function get() {
-      return 'subscription';
-    }
-  }, {
-    key: 'TYPE_ADSUPPORTED',
-    get: function get() {
-      return 'adSupported';
-    }
-  }]);
-
-  return MHSourceMethod;
-}();
-
-exports.default = MHSourceMethod;
-},{"../internal/jsonParse.js":56,"./MHSourceFormat.js":86}],89:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Subscription Object
-
-var MHSubscription = function (_MHObject) {
-  _inherits(MHSubscription, _MHObject);
-
-  function MHSubscription() {
-    _classCallCheck(this, MHSubscription);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSubscription).apply(this, arguments));
-  }
-
-  _createClass(MHSubscription, [{
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHSubscription.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHSubscriptionMetadata
-      });
-    }
-  }], [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsub';
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/subscription';
-    }
-  }]);
-
-  return MHSubscription;
-}(_MHObject3.default);
-
-exports.default = MHSubscription;
-
-
-_MHObject3.default.registerConstructor(MHSubscription, 'MHSubscription');
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],90:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHAchievement = function (_MHTrait) {
-  _inherits(MHAchievement, _MHTrait);
-
-  function MHAchievement() {
-    _classCallCheck(this, MHAchievement);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAchievement).apply(this, arguments));
-  }
-
-  _createClass(MHAchievement, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhach';
-    }
-  }]);
-
-  return MHAchievement;
-}(_MHTrait3.default);
-
-exports.default = MHAchievement;
-
-
-_MHObject2.default.registerConstructor(MHAchievement, 'MHAchievement');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],91:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHAudience = function (_MHTrait) {
-  _inherits(MHAudience, _MHTrait);
-
-  function MHAudience() {
-    _classCallCheck(this, MHAudience);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHAudience).apply(this, arguments));
-  }
-
-  _createClass(MHAudience, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhaud';
-    }
-  }]);
-
-  return MHAudience;
-}(_MHTrait3.default);
-
-exports.default = MHAudience;
-
-
-_MHObject2.default.registerConstructor(MHAudience, 'MHAudience');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],92:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHEra = function (_MHTrait) {
-  _inherits(MHEra, _MHTrait);
-
-  function MHEra() {
-    _classCallCheck(this, MHEra);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHEra).apply(this, arguments));
-  }
-
-  _createClass(MHEra, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhera';
-    }
-  }]);
-
-  return MHEra;
-}(_MHTrait3.default);
-
-exports.default = MHEra;
-
-
-_MHObject2.default.registerConstructor(MHEra, 'MHEra');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],93:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHFlag = function (_MHTrait) {
-  _inherits(MHFlag, _MHTrait);
-
-  function MHFlag() {
-    _classCallCheck(this, MHFlag);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHFlag).apply(this, arguments));
-  }
-
-  _createClass(MHFlag, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhflg';
-    }
-  }]);
-
-  return MHFlag;
-}(_MHTrait3.default);
-
-exports.default = MHFlag;
-
-
-_MHObject2.default.registerConstructor(MHFlag, 'MHFlag');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],94:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHGenre = function (_MHTrait) {
-  _inherits(MHGenre, _MHTrait);
-
-  function MHGenre() {
-    _classCallCheck(this, MHGenre);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGenre).apply(this, arguments));
-  }
-
-  _createClass(MHGenre, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgnr';
-    }
-  }]);
-
-  return MHGenre;
-}(_MHTrait3.default);
-
-exports.default = MHGenre;
-
-
-_MHObject2.default.registerConstructor(MHGenre, 'MHGenre');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],95:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHGraphGenre = function (_MHTrait) {
-  _inherits(MHGraphGenre, _MHTrait);
-
-  function MHGraphGenre() {
-    _classCallCheck(this, MHGraphGenre);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHGraphGenre).apply(this, arguments));
-  }
-
-  _createClass(MHGraphGenre, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhgrg';
-    }
-  }]);
-
-  return MHGraphGenre;
-}(_MHTrait3.default);
-
-exports.default = MHGraphGenre;
-
-
-_MHObject2.default.registerConstructor(MHGraphGenre, 'MHGraphGenre');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],96:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHMaterialSource = function (_MHTrait) {
-  _inherits(MHMaterialSource, _MHTrait);
-
-  function MHMaterialSource() {
-    _classCallCheck(this, MHMaterialSource);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMaterialSource).apply(this, arguments));
-  }
-
-  _createClass(MHMaterialSource, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhmts';
-    }
-  }]);
-
-  return MHMaterialSource;
-}(_MHTrait3.default);
-
-exports.default = MHMaterialSource;
-
-
-_MHObject2.default.registerConstructor(MHMaterialSource, 'MHMaterialSource');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],97:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHMood = function (_MHTrait) {
-  _inherits(MHMood, _MHTrait);
-
-  function MHMood() {
-    _classCallCheck(this, MHMood);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHMood).apply(this, arguments));
-  }
-
-  _createClass(MHMood, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhmod';
-    }
-  }]);
-
-  return MHMood;
-}(_MHTrait3.default);
-
-exports.default = MHMood;
-
-
-_MHObject2.default.registerConstructor(MHMood, 'MHMood');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],98:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHQuality = function (_MHTrait) {
-  _inherits(MHQuality, _MHTrait);
-
-  function MHQuality() {
-    _classCallCheck(this, MHQuality);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHQuality).apply(this, arguments));
-  }
-
-  _createClass(MHQuality, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhqlt';
-    }
-  }]);
-
-  return MHQuality;
-}(_MHTrait3.default);
-
-exports.default = MHQuality;
-
-
-_MHObject2.default.registerConstructor(MHQuality, 'MHQuality');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],99:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHStoryElement = function (_MHTrait) {
-  _inherits(MHStoryElement, _MHTrait);
-
-  function MHStoryElement() {
-    _classCallCheck(this, MHStoryElement);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHStoryElement).apply(this, arguments));
-  }
-
-  _createClass(MHStoryElement, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhstr';
-    }
-  }]);
-
-  return MHStoryElement;
-}(_MHTrait3.default);
-
-exports.default = MHStoryElement;
-
-
-_MHObject2.default.registerConstructor(MHStoryElement, 'MHStoryElement');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],100:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHStyleElement = function (_MHTrait) {
-  _inherits(MHStyleElement, _MHTrait);
-
-  function MHStyleElement() {
-    _classCallCheck(this, MHStyleElement);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHStyleElement).apply(this, arguments));
-  }
-
-  _createClass(MHStyleElement, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsty';
-    }
-  }]);
-
-  return MHStyleElement;
-}(_MHTrait3.default);
-
-exports.default = MHStyleElement;
-
-
-_MHObject2.default.registerConstructor(MHStyleElement, 'MHStyleElement');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],101:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHSubGenre = function (_MHTrait) {
-  _inherits(MHSubGenre, _MHTrait);
-
-  function MHSubGenre() {
-    _classCallCheck(this, MHSubGenre);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHSubGenre).apply(this, arguments));
-  }
-
-  _createClass(MHSubGenre, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhsgn';
-    }
-  }]);
-
-  return MHSubGenre;
-}(_MHTrait3.default);
-
-exports.default = MHSubGenre;
-
-
-_MHObject2.default.registerConstructor(MHSubGenre, 'MHSubGenre');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],102:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHTrait2 = require('./MHTrait.js');
-
-var _MHTrait3 = _interopRequireDefault(_MHTrait2);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-// MediaHound Trait Object
-
-var MHTheme = function (_MHTrait) {
-  _inherits(MHTheme, _MHTrait);
-
-  function MHTheme() {
-    _classCallCheck(this, MHTheme);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHTheme).apply(this, arguments));
-  }
-
-  _createClass(MHTheme, null, [{
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhthm';
-    }
-  }]);
-
-  return MHTheme;
-}(_MHTrait3.default);
-
-exports.default = MHTheme;
-
-
-_MHObject2.default.registerConstructor(MHTheme, 'MHTheme');
-},{"../base/MHObject.js":38,"./MHTrait.js":103}],103:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var MHTrait = function (_MHObject) {
-  _inherits(MHTrait, _MHObject);
-
-  function MHTrait() {
-    _classCallCheck(this, MHTrait);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHTrait).apply(this, arguments));
-  }
-
-  _createClass(MHTrait, [{
-    key: 'fetchContent',
-    value: function fetchContent() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('content');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHTrait.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHTraitMetadata
-      });
-    }
-  }], [{
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/trait';
-    }
-  }]);
-
-  return MHTrait;
-}(_MHObject3.default);
-
-exports.default = MHTrait;
-},{"../base/MHObject.js":38,"../meta/MHMetadata.js":82}],104:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _MHObject = require('../base/MHObject.js');
-
-var _MHObject2 = _interopRequireDefault(_MHObject);
-
-var _MHUser = require('./MHUser.js');
-
-var _MHUser2 = _interopRequireDefault(_MHUser);
-
-var _MHSDK = require('../sdk/MHSDK.js');
-
-var _MHSDK2 = _interopRequireDefault(_MHSDK);
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// Singleton Containers
-var loggedInUser = null;
-
-var MHLoginSession = function () {
-  function MHLoginSession() {
-    _classCallCheck(this, MHLoginSession);
-  }
-
-  _createClass(MHLoginSession, null, [{
-    key: 'loginDialogURLWithRedirectURL',
-    value: function loginDialogURLWithRedirectURL(redirectUrl) {
-      var scope = arguments.length <= 1 || arguments[1] === undefined ? 'public_profile' : arguments[1];
-
-      return '' + _MHSDK2.default.origin + _MHSDK2.default.apiVersion + '/security/oauth/authorize?client_id=' + _MHSDK2.default.clientId + '&client_secret=' + _MHSDK2.default.clientSecret + '&scope=' + scope + '&response_type=token&redirect_uri=' + redirectUrl;
-    }
-  }, {
-    key: 'loginWithAccessToken',
-    value: function loginWithAccessToken(accessToken) {
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        useForms: true,
-        endpoint: 'security/oauth/check_token',
-        data: {
-          token: accessToken
-        },
-        withCredentials: true,
-        headers: {
-          Authorization: 'Basic ' + _MHSDK2.default.authHeaders()
-        }
-      }).then(function (response) {
-        _MHSDK2.default._setUserAccessToken(accessToken);
-
-        return _MHUser2.default.fetchByUsername(response.user_name);
-      }).then(function (user) {
-        loggedInUser = user;
-        return loggedInUser;
-      });
-    }
-
-    /**
-     * The Currently logged in MHUser object
-     * @property {MHUser}
-     * @static
-     */
-
-  }, {
-    key: 'logout',
-
-
-    /**
-     * MHLoginSession.logout()
-     */
-    value: function logout() {
-      _MHObject.mhidLRU.removeAll();
-
-      loggedInUser = null;
-    }
-  }, {
-    key: 'currentUser',
-    get: function get() {
-      return loggedInUser;
-    }
-  }]);
-
-  return MHLoginSession;
-}();
-
-exports.default = MHLoginSession;
-},{"../../request/hound-request.js":106,"../base/MHObject.js":38,"../sdk/MHSDK.js":83,"./MHUser.js":105}],105:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _debugHelpers = require('../internal/debug-helpers.js');
-
-var _MHObject2 = require('../base/MHObject.js');
-
-var _MHObject3 = _interopRequireDefault(_MHObject2);
-
-var _MHRelationalPair = require('../container/MHRelationalPair.js');
-
-var _MHRelationalPair2 = _interopRequireDefault(_MHRelationalPair);
-
-var _MHMetadata = require('../meta/MHMetadata.js');
-
-var _houndRequest = require('../../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /*global System, Blob, File */
-
-//import { MHImage } from '../image/MHImage.js';
-
-// MediaHound User Object
-
-var MHUser = function (_MHObject) {
-  _inherits(MHUser, _MHObject);
-
-  function MHUser() {
-    _classCallCheck(this, MHUser);
-
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(MHUser).apply(this, arguments));
-  }
-
-  _createClass(MHUser, [{
-    key: 'setPassword',
-
-
-    /* TODO: change endpoint to CamelCase and to use mhid?
-    * mhUser.setPassword()
-    *
-    * @return { Promise }
-    *
-    */
-    value: function setPassword(password, newPassword) {
-
-      if (!password || typeof password !== 'string' && !(password instanceof String)) {
-        throw new TypeError('password must be type string in MHUser.newPassword');
-      }
-      if (!newPassword || typeof newPassword !== 'string' && !(newPassword instanceof String)) {
-        throw new TypeError('newPassword must be type string in MHUser.newPassword');
-      }
-      var path = this.subendpoint('updatePassword');
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: true,
-        data: {
-          oldPassword: password,
-          newPassword: newPassword
-        }
-      }).then(function (response) {
-        console.log('valid password: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 400) {
-          console.error('The password ' + password + ' is an invalid password.');
-        } else if (error.xhr.status === 404) {
-          console.error('The newPassword ' + newPassword + ' was not found.');
-        } else {
-          console.log('error in setPassword: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-    /* TODO: docJS
-    *
-    * mhUser.setProfileImage(image);
-    *
-    */
-
-  }, {
-    key: 'setProfileImage',
-    value: function setProfileImage(image) {
-      (0, _debugHelpers.log)('in setProfileImage with image: ', image);
-      if (!image) {
-        throw new TypeError('No Image passed to setProfileImage');
-        //return Promise.resolve(null);
-      }
-      if (!(image instanceof Blob || image instanceof File)) {
-        throw new TypeError('Image was not of type Blob or File.');
-      }
-
-      // If not current user throw error
-      if (!this.isCurrentUser) {
-        //throw new NoMHSessionError('No valid user session. Please log in to change profile picture');
-        throw function () {
-          var NoMHSessionError = function NoMHSessionError(message) {
-            this.name = 'NoMHSessionError';
-            this.message = message || '';
-          };
-          NoMHSessionError.prototype = Object.create(Error.prototype);
-          NoMHSessionError.constructor = NoMHSessionError;
-          return new NoMHSessionError('No valid user session. Please log in to change profile picture');
-        }();
-      }
-
-      var path = this.subendpoint('uploadImage'),
-          form = new FormData();
-
-      form.append('data', image);
-
-      (0, _debugHelpers.log)('path: ', path, 'image: ', image, 'form: ', form);
-
-      // send form or file?
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: true,
-        data: form
-      }).then(function (primaryImage) {
-
-        // var MHLoginSession = System.get('../../src/models/user/MHLoginSession.js').MHLoginSession;
-        // //console.warn('circular dep: ', MHLoginSession);
-        //var img = new MHImage(primaryImage);
-        //MHLoginSession.updatedProfileImage(img);
-        //return img;
-
-        // TODO: wire back up the Event in MHLoginSession
-        return primaryImage;
-      });
-    }
-
-    /**
-    * MHUser.fetchByUsername(username)
-    *
-    * @param { String } username - Username to fetch info for
-    * @param { boolean} force - force fetch to server
-    *
-    * @return { Promise } - resolves to the MHUser object
-    *
-    */
-
-  }, {
-    key: 'fetchInterestFeed',
-
-
-    /* TODO: add local cache
-    * mhUsr.fetchInterestFeed(view, page, size)
-    *
-    * @param view { String } - the view type query parameter
-    * @param page { Number } - the page number query parameter
-    * @param size { Number } - the number of items per page
-    *
-    * @return { pagedRequest } - resolves to paged response from server, res.content contains array of data
-    *
-    */
-    value: function fetchInterestFeed() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('interestFeed');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /* TODO: remove console.log debug stuffs
-    * mhUsr.fetchOwnedCollections()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'fetchOwnedCollections',
-    value: function fetchOwnedCollections() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? true : arguments[2];
-
-      var path = this.subendpoint('ownedCollections');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /**
-    * mhObj.fetchSuggested(mhid,force)
-    *
-    * @param { string='full' } view - the view needed to depict each MHObject that is returned
-    * @param { number=12     } size  - the number of items to return per page
-    * @param { Boolean=false } force
-    *
-    * @return { houndPagedRequest }  - MediaHound paged request object for this feed
-    *
-    */
-
-  }, {
-    key: 'fetchSuggested',
-    value: function fetchSuggested() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('suggested');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /**
-    * mhUser.fetchFollowing()
-    * @param force {boolean=false}
-    * @returns {Promise}
-    */
-
-  }, {
-    key: 'fetchFollowing',
-    value: function fetchFollowing() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('following');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'fetchFollowers',
-    value: function fetchFollowers() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('followers');
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /*
-    * mhUser.linkService()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'fetchServiceSettings',
-
-
-    /*
-    * mhUser.fetchServiceSettings()
-    *
-    * @return { Promise }
-    *
-    */
-    value: function fetchServiceSettings(serv) {
-
-      var service = serv || null;
-      var path = this.subendpoint('settings');
-
-      if (service === null) {
-        console.warn('No service provided, aborting. First argument must include service name i.e. \'facebook\' or \'twitter\'.');
-        return false;
-      }
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path + '/' + service,
-        withCredentials: true,
-        //data   : { 'successRedirectUrl' : 'http://www.mediahound.com',  'failureRedirectUrl' : 'http://www.mediahound.com'},
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      }).catch(function (response) {
-        console.error(response);
-      }).then(function (response) {
-        if (response === undefined) {
-          return 500;
-        } else {
-          return response;
-        }
-      });
-    }
-
-    /*
-    * mhUser.fetchTwitterFollowers()
-    *
-    * @return { PagedRequest }
-    *
-    */
-
-  }, {
-    key: 'fetchTwitterFollowers',
-    value: function fetchTwitterFollowers() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('settings') + '/twitter/friends';
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-
-    /*
-    * mhUser.fetchFacebookFriends()
-    *
-    * @return { PagedRequest }
-    *
-    */
-
-  }, {
-    key: 'fetchFacebookFriends',
-    value: function fetchFacebookFriends() {
-      var view = arguments.length <= 0 || arguments[0] === undefined ? 'full' : arguments[0];
-      var size = arguments.length <= 1 || arguments[1] === undefined ? 12 : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      var path = this.subendpoint('settings') + '/facebook/friends';
-      return this.fetchPagedEndpoint(path, view, size, force);
-    }
-  }, {
-    key: 'jsonProperties',
-    get: function get() {
-      return _extends({}, _get(Object.getPrototypeOf(MHUser.prototype), 'jsonProperties', this), {
-        metadata: _MHMetadata.MHUserMetadata
-      });
-    }
-  }, {
-    key: 'isCurrentUser',
-    get: function get() {
-      var currentUser = require('./MHLoginSession.js').default.currentUser;
-      return this.isEqualToMHObject(currentUser);
-    }
-
-    /**
-    * fetchSourceSettings(mhid)
-    * @param mhid
-    * Fetches the settings for the current logged in user.
-    */
-
-  }], [{
-    key: 'fetchSourceSettings',
-    value: function fetchSourceSettings(mhid) {
-      if (!mhid || typeof mhid !== 'string' && !(mhid instanceof String)) {
-        throw new TypeError('mhid must be type string in MHUser.fetchSourceSettings');
-      }
-      var path = MHUser.rootEndpoint + '/' + mhid + '/settings/sources';
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (response) {
-        response = _MHRelationalPair2.default.createFromArray(response.content);
-        console.log('valid settings response: ', response);
-        return response;
-      }).catch(function (error) {
-        console.log('error in fetchSourceSettings: ', error.error.message);
-        console.error(error.error.stack);
-        return false;
-      });
-    }
-
-    /**
-    * updateSettings(mhid,updates)
-    *
-    * @param updates
-    * updates must be passed into updateSettings as an object with three required params.
-    * An example of updating the boolean value of onboarded.
-    * {
-    *   'operation':'replace',
-    *   'property':'onboarded',
-    *   'value':Boolean
-    * }
-    * operation refers to the actions 'replace', 'add', or 'remove'
-    * property is the property you want to change, i.e. 'onboarded', 'access', or 'tooltips'
-    * value is either a boolean or string based on context of the request
-    *
-    * Another exmaple for updating tooltips:
-    * {
-    *   'operation':'add',
-    *   'property':'tooltips',
-    *   'value':['webapptooltip1', 'webapptooltip2', 'webapptooltip3']
-    * }
-    * @returns {Promise}
-    */
-
-  }, {
-    key: 'updateSettings',
-    value: function updateSettings(mhid, updates) {
-      if (updates === null || typeof updates === 'string' || Array.isArray(updates)) {
-        throw new TypeError('Update data parameter must be of type object');
-      }
-      if (updates.operation === null || updates.property === null || updates.value === null) {
-        throw new TypeError('Updates must include operation, property, and value as parameters.');
-      }
-      var path = MHUser.rootEndpoint + '/' + mhid + '/settings/internal/update';
-      console.log(path, updates);
-      return (0, _houndRequest2.default)({
-        method: 'PUT',
-        endpoint: path,
-        withCredentials: true,
-        data: updates
-      }).catch(function (err) {
-        console.log('error on profile update: ', err);
-        throw err;
-      });
-    }
-
-    /** TODO: refactor after new auth system
-    *
-    */
-
-  }, {
-    key: 'validateUsername',
-    value: function validateUsername(username) {
-      if (!username || typeof username !== 'string' && !(username instanceof String)) {
-        throw new TypeError('Username must be type string in MHUser.validateUsername');
-      }
-      var path = MHUser.rootEndpoint + '/validate/username/' + encodeURIComponent(username);
-
-      // returns 200 for acceptable user name
-      // returns 406 for taken user name
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (response) {
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 406) {
-          console.error('The username ' + username + ' is already taken.');
-        } else {
-          console.log('error in validate username: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-
-    /** TODO: refactor after new auth system
-    *
-    */
-
-  }, {
-    key: 'validateEmail',
-    value: function validateEmail(email) {
-      if (!email || typeof email !== 'string' && !(email instanceof String)) {
-        throw new TypeError('Email must be type string in MHUser.validateEmail');
-      }
-      var path = MHUser.rootEndpoint + '/validate/email/' + encodeURIComponent(email);
-
-      // returns 200 for acceptable user name
-      // returns 406 for taken user name
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (response) {
-        //console.log('valid email response: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 406) {
-          console.error('The email ' + email + ' is already registered.');
-        } else {
-          console.log('error in validate username: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-    /* TODO: change endpoint to CamelCase and to use mhid?
-    * mhUser.forgotUsernameWithEmail()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'forgotUsernameWithEmail',
-    value: function forgotUsernameWithEmail(email) {
-      if (!email || typeof email !== 'string' && !(email instanceof String)) {
-        throw new TypeError('Email must be type string in MHUser.forgotUsernameWithEmail');
-      }
-      var path = MHUser.rootEndpoint + '/forgotusername',
-          data = {};
-
-      data.email = email;
-
-      // returns 200 for acceptable user name
-      // returns 406 for taken user name
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: false,
-        data: data
-      }).then(function (response) {
-        //  console.log('valid forgotUsernameWithEmail: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 400) {
-          console.error('The email ' + email + ' is missing or an invalid argument.');
-        } else if (error.xhr.status === 404) {
-          console.error('The user with the email address ' + email + ' was not found.');
-        } else {
-          console.log('error in new forgotUsernameWithEmail: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-    /* TODO: change endpoint to CamelCase and to use mhid?
-    * mhUser.forgotPasswordWithEmail()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'forgotPasswordWithEmail',
-    value: function forgotPasswordWithEmail(email) {
-      if (!email || typeof email !== 'string' && !(email instanceof String)) {
-        throw new TypeError('Email must be type string in MHUser.forgotPasswordWithEmail');
-      }
-      var path = MHUser.rootEndpoint + '/forgotpassword',
-          data = {};
-
-      data.email = email;
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: false,
-        data: data
-      }).then(function (response) {
-        console.log('valid forgotPasswordWithEmail: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 400) {
-          console.error('The email ' + email + ' is missing or an invalid argument.');
-        } else if (error.xhr.status === 404) {
-          console.error('The user with the email address ' + email + ' was not found.');
-        } else {
-          console.log('error in new forgotPasswordWithEmail: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-    /* TODO: change endpoint to CamelCase and to use mhid?
-    * mhUser.forgotPasswordWithEmail()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'forgotPasswordWithUsername',
-    value: function forgotPasswordWithUsername(username) {
-      if (!username || typeof username !== 'string' && !(username instanceof String)) {
-        throw new TypeError('username must be type string in MHUser.forgotPasswordWithUsername');
-      }
-      var path = MHUser.rootEndpoint + '/forgotpassword',
-          data = {};
-
-      data.username = username;
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: false,
-        data: data
-      }).then(function (response) {
-        console.log('valid forgotPasswordWithUsername: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 400) {
-          console.error('The username ' + username + ' is missing or an invalid argument.');
-        } else if (error.xhr.status === 404) {
-          console.error('The user ' + username + ' was not found.');
-        } else {
-          console.log('error in forgotPasswordWithUsername: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-    /* TODO: change endpoint to CamelCase and to use mhid?
-    * mhUser.newPassword()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'newPassword',
-    value: function newPassword(password, ticket) {
-
-      if (!password || typeof password !== 'string' && !(password instanceof String)) {
-        throw new TypeError('password must be type string in MHUser.newPassword');
-      }
-      if (!ticket || typeof ticket !== 'string' && !(ticket instanceof String)) {
-        throw new TypeError('ticket must be type string in MHUser.newPassword');
-      }
-      var path = MHUser.rootEndpoint + '/forgotpassword/finish',
-          data = {};
-
-      data.newPassword = password;
-      data.ticket = ticket;
-
-      return (0, _houndRequest2.default)({
-        method: 'POST',
-        endpoint: path,
-        withCredentials: false,
-        data: data
-      }).then(function (response) {
-        console.log('valid newPassword: ', response);
-        return response;
-      }).catch(function (error) {
-        if (error.xhr.status === 400) {
-          console.error('The password ' + password + ' is an invalid password.');
-        } else if (error.xhr.status === 404) {
-          console.error('The ticket ' + ticket + ' was not found.');
-        } else {
-          console.log('error in newPassword: ', error.error.message);
-          console.error(error.error.stack);
-        }
-        return false;
-      });
-    }
-  }, {
-    key: 'fetchByUsername',
-    value: function fetchByUsername(username) {
-      var view = arguments.length <= 1 || arguments[1] === undefined ? 'full' : arguments[1];
-      var force = arguments.length <= 2 || arguments[2] === undefined ? false : arguments[2];
-
-      if (!username || typeof username !== 'string' && !(username instanceof String)) {
-        throw new TypeError('Username not of type String in fetchByUsername');
-      }
-      if (_MHObject3.default.getPrefixFromMhid(username) != null) {
-        throw new TypeError('Passed mhid to fetchByUsername, please use MHObject.fetchByMhid for this request.');
-      }
-      if (view === null || view === undefined) {
-        view = 'full';
-      }
-
-      (0, _debugHelpers.log)('in fetchByUsername, looking for: ' + username);
-
-      // Check LRU for altId === username
-      if (!force && _MHObject2.mhidLRU.hasAltId(username)) {
-        return Promise.resolve(_MHObject2.mhidLRU.getByAltId(username));
-      }
-
-      var path = MHUser.rootEndpoint + '/lookup/' + username,
-          newObj;
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path,
-        withCredentials: true,
-        params: {
-          view: view
-        }
-      }).then(function (response) {
-        newObj = _MHObject3.default.create(response);
-        _MHObject2.mhidLRU.putMHObj(newObj);
-        return newObj;
-      });
-    }
-
-    /* TODO: Refactor to api 1.0 specs
-    * MHUser.fetchFeaturedUsers()
-    *
-    * @return { Promise } - resloves to an array of featured users of type MHUser
-    *
-    */
-
-  }, {
-    key: 'fetchFeaturedUsers',
-    value: function fetchFeaturedUsers() {
-      var path = this.rootSubendpoint('featured');
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: path
-      }).then(function (response) {
-        return Promise.all(_MHObject3.default.fetchByMhids(response));
-      });
-    }
-  }, {
-    key: 'linkService',
-    value: function linkService(serv, succ, fail) {
-
-      var service = serv || null;
-      var success = succ || 'https://www.mediahound.com/';
-      var failure = fail || 'https://www.mediahound.com/';
-
-      if (service === null) {
-        console.warn('No service provided, aborting. First argument must include service name i.e. \'facebook\' or \'twitter\'.');
-        return false;
-      }
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: MHUser.rootEndpoint + '/account/' + service + '/link?successRedirectUrl=' + success + '&failureRedirectUrl=' + failure,
-        withCredentials: true,
-        //data   : { 'successRedirectUrl' : 'http://www.mediahound.com',  'failureRedirectUrl' : 'http://www.mediahound.com'},
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      }).then(function (response) {
-        console.log(response);
-        return response;
-      });
-    }
-    /*
-    * mhUser.unlinkService()
-    *
-    * @return { Promise }
-    *
-    */
-
-  }, {
-    key: 'unlinkService',
-    value: function unlinkService(serv) {
-      var service = serv || null;
-
-      if (service === null) {
-        console.warn('No service provided, aborting. First argument must include service name i.e. \'facebook\' or \'twitter\'.');
-        return false;
-      }
-
-      return (0, _houndRequest2.default)({
-        method: 'GET',
-        endpoint: MHUser.rootEndpoint + '/account/' + service + '/unlink',
-        withCredentials: true,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      }).then(function (response) {
-        console.log(response);
-        return response;
-      });
-    }
-  }, {
-    key: 'mhidPrefix',
-    get: function get() {
-      return 'mhusr';
-    }
-  }, {
-    key: 'rootEndpoint',
-    get: function get() {
-      return 'graph/user';
-    }
-  }]);
-
-  return MHUser;
-}(_MHObject3.default);
-
-exports.default = MHUser;
-
-
-_MHObject3.default.registerConstructor(MHUser, 'MHUser');
-},{"../../request/hound-request.js":106,"../base/MHObject.js":38,"../container/MHRelationalPair.js":43,"../internal/debug-helpers.js":55,"../meta/MHMetadata.js":82,"./MHLoginSession.js":104}],106:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _promiseRequest = require('./promise-request.js');
-
-var _promiseRequest2 = _interopRequireDefault(_promiseRequest);
-
-var _MHSDK = require('../models/sdk/MHSDK.js');
-
-var _MHSDK2 = _interopRequireDefault(_MHSDK);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-// import { log } from '../models/internal/debug-helpers.js';
-
-var extraEncode = _promiseRequest2.default.extraEncode;
-var defaults = {
-  headers: {
-    'Accept': 'application/json'
-  },
-  withCredentials: true
-};
-
-var responseThen = function responseThen(response) {
-  if (response) {
-    if (response.responseText !== null && response.responseText !== '') {
-      try {
-        return JSON.parse(response.responseText);
-      } catch (e) {
-        return response.responseText;
-      }
-    }
-    if (response.response !== null && typeof response.response === 'string' && response.response !== '') {
-      try {
-        return JSON.parse(response.response);
-      } catch (e) {
-        return response.response;
-      }
-    }
-    return response.status;
-  }
-  return response;
-};
-
-var houndRequest = function houndRequest(args) {
-  // Passed through to promiseRequest
-  //  method
-  //  params
-  //  data
-  //  headers
-  //  withCredentials
-  //  onprogress or onProgress
-  //
-  // Unique
-  //  endpoint -- {String} api endpoint to pass as url to promiseRequest
-  //
-  // Overwrites
-  //  url
-
-  // If args doesn't exist throw TypeError
-  if (!args) {
-    throw new TypeError('Arguments not specified for houndRequest', 'houndRequest.js', 27);
-  }
-  //log('args before defaults: ', JSON.stringify(args));
-
-  // Enforce capitals for method
-  if (typeof args.method === 'string' && /[a-z]/.test(args.method)) {
-    args.method = args.method.toUpperCase();
-  }
-
-  // Set/Add defaults for POST requests
-  if (args.method && args.method === 'POST') {
-    defaults.withCredentials = true;
-  }
-
-  // Set args.url via args.endpoint
-  //  delete endpoint from args
-  if (args.endpoint) {
-    // houndOrigin defined in hound-origin.js before import, must be fully qualified domain name
-    args.url = _MHSDK2.default.origin + _MHSDK2.default.apiVersion + '/' + args.endpoint;
-    delete args.endpoint;
-  }
-
-  // Set the OAuth access token if the client has configured OAuth.
-  if (_MHSDK2.default.MHAccessToken) {
-    if (args.params) {
-      if (!args.params.access_token) {
-        args.params.access_token = _MHSDK2.default.MHAccessToken;
-      }
-    } else {
-      args.params = {
-        access_token: _MHSDK2.default.MHAccessToken
-      };
-    }
-  }
-
-  // Set to defaults or merge
-  //  headers
-  if (!args.headers) {
-    args.headers = defaults.headers;
-  } else {
-    // Merge Defaults in
-    var prop;
-    for (prop in defaults.headers) {
-      if (defaults.headers.hasOwnProperty(prop) && !(prop in args.headers)) {
-        args.headers[prop] = defaults.headers[prop];
-      }
-    }
-  }
-
-  // withCredentials
-  if (args.withCredentials === null) {
-    args.withCredentials = defaults.withCredentials;
-  }
-
-  //log('args after defaults: ', JSON.stringify(args));
-
-  return (0, _promiseRequest2.default)(args).then(responseThen);
-};
-
-Object.defineProperty(houndRequest, 'extraEncode', {
-  configurable: false,
-  enumerable: false,
-  get: function get() {
-    return extraEncode;
-  }
-});
-
-exports.default = houndRequest;
-},{"../models/sdk/MHSDK.js":83,"./promise-request.js":107}],107:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var xhrc;
-
-// Use XMLHttpRequest from a browser or shim it in Ndoe with xmlhttprequest-cookie.
-if (typeof window !== 'undefined') {
-  if (!window.XMLHttpRequest || !('withCredentials' in new XMLHttpRequest())) {
-    throw new Error('No XMLHttpRequest 2 Object found, please update your browser.');
-  } else {
-    xhrc = window;
-  }
-} else if (typeof window === 'undefined') {
-  xhrc = require('xmlhttprequest-cookie');
-}
-
-var extraEncode = function extraEncode(str) {
-  // encodeURIComponent then encode - _ . ! ~ * ' ( ) as well
-  return encodeURIComponent(str).replace(/\-/g, '%2D').replace(/\_/g, '%5F').replace(/\./g, '%2E').replace(/\!/g, '%21').replace(/\~/g, '%7E').replace(/\*/g, '%2A').replace(/\'/g, '%27').replace(/\(/g, '%28').replace(/\)/g, '%29');
-};
-
-/**
- * API Request Object
- * Takes single config obj, returns Promise
- * Inspired by Angular's HTTP service.
- *
- * Config Options
- * Object describing the request to be made and how it should be processed. The object has following properties:
- *
- *  method  - {string} - HTTP method (e.g. 'GET', 'POST', etc)
- *  url     - {string} - Absolute or relative URL of the resource that is being requested.
- *  params  - {Object.<string|Object>}
- *      - Map of strings or objects which will be turned to ?key1=value1&key2=value2 after the url.
- *      If the value is not a string, it will be JSONified.
- *
- *  data    - {string|Object} - Data to be sent as the request message data.
- *  headers - {Object}
- *      - Map of strings or functions which return strings representing HTTP headers to send to the server.
- *      If the return value of a function is null, the header will not be sent.
- *
- *
- * withCredentials   - {boolean}
- *      - whether to set the withCredentials flag on the XHR object.
- *      See [requests with credentials]https://developer.mozilla.org/en/http_access_control#section_5 for more information.
- *
- *  onprogress    - {function} a function fired as progress is reported
- *
- **/
-var promiseRequest = function promiseRequest(args) {
-  var prop = undefined;
-  var method = args.method || 'GET';
-  var url = args.url || null;
-  var params = args.params || null;
-  var data = args.data || null;
-  var headers = args.headers || null;
-  var withCreds = args.withCredentials !== undefined ? args.withCredentials : true;
-  var onprogress = args.onprogress || null;
-  var xhr = new xhrc.XMLHttpRequest();
-
-  // Check for url
-  if (url === null) {
-    throw new TypeError('url was null or undefined in arguments object', 'promiseRequest.js', 70);
-  }
-
-  // Add params
-  if (params !== null) {
-    // If the URL already contains a ?, then we won't add one
-    if (url.indexOf('?') === -1) {
-      url += '?';
-    }
-    for (prop in params) {
-      if (params.hasOwnProperty(prop)) {
-        if (url[url.length - 1] !== '?') {
-          url += '&';
-        }
-        if (typeof params[prop] === 'string' || params[prop] instanceof String) {
-          url += encodeURIComponent(prop) + '=' + extraEncode(params[prop]).replace('%20', '+');
-        } else if (Array.isArray(params[prop]) || params[prop] instanceof Array) {
-          var _iteratorNormalCompletion = true;
-          var _didIteratorError = false;
-          var _iteratorError = undefined;
-
-          try {
-            for (var _iterator = params[prop][Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-              var p = _step.value;
-
-              url += encodeURIComponent(prop) + '=' + extraEncode(p).replace('%20', '+');
-              url += '&';
-            }
-          } catch (err) {
-            _didIteratorError = true;
-            _iteratorError = err;
-          } finally {
-            try {
-              if (!_iteratorNormalCompletion && _iterator.return) {
-                _iterator.return();
-              }
-            } finally {
-              if (_didIteratorError) {
-                throw _iteratorError;
-              }
-            }
-          }
-
-          if (params[prop].length > 0) {
-            url = url.slice(0, -1); // Remove last & character
-          }
-        } else {
-            url += encodeURIComponent(prop) + '=' + extraEncode(JSON.stringify(params[prop])).replace('%20', '+');
-          }
-      }
-    }
-    prop = null;
-  }
-
-  // Stringify Data
-  if (data) {
-    if (typeof data === 'string' || data instanceof String || data instanceof ArrayBuffer) {
-      // do nothing
-    } else if (typeof FormData !== 'undefined' && data instanceof FormData) {
-        // do nothing
-      } else if (typeof Blob !== 'undefined' && data instanceof Blob) {
-          // do nothing
-        } else {
-            if (args.useForms) {
-              var dataUrl = '';
-              for (prop in data) {
-                if (data.hasOwnProperty(prop)) {
-                  if (dataUrl.length !== 0) {
-                    dataUrl += '&';
-                  }
-                  if (typeof data[prop] === 'string' || data[prop] instanceof String) {
-                    dataUrl += prop + '=' + data[prop];
-                  } else if (Array.isArray(data[prop]) || data[prop] instanceof Array) {
-                    var _iteratorNormalCompletion2 = true;
-                    var _didIteratorError2 = false;
-                    var _iteratorError2 = undefined;
-
-                    try {
-                      for (var _iterator2 = data[prop][Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
-                        var p2 = _step2.value;
-
-                        dataUrl += prop + '=' + p2;
-                        dataUrl += '&';
-                      }
-                    } catch (err) {
-                      _didIteratorError2 = true;
-                      _iteratorError2 = err;
-                    } finally {
-                      try {
-                        if (!_iteratorNormalCompletion2 && _iterator2.return) {
-                          _iterator2.return();
-                        }
-                      } finally {
-                        if (_didIteratorError2) {
-                          throw _iteratorError2;
-                        }
-                      }
-                    }
-
-                    if (data[prop].length > 0) {
-                      dataUrl = dataUrl.slice(0, -1); // Remove last & character
-                    }
-                  } else {
-                      dataUrl += prop + '=' + JSON.stringify(data[prop]);
-                    }
-                }
-              }
-              data = dataUrl;
-
-              if (headers === null) {
-                headers = {
-                  'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8'
-                };
-              } else if (!headers['Content-Type'] && !headers['content-type'] && !headers['Content-type'] && !headers['content-Type']) {
-                headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=utf-8';
-              }
-            } else {
-              data = JSON.stringify(data);
-              if (headers === null) {
-                headers = {
-                  'Content-Type': 'application/json'
-                };
-              } else if (!headers['Content-Type'] && !headers['content-type'] && !headers['Content-type'] && !headers['content-Type']) {
-                headers['Content-Type'] = 'application/json';
-              }
-            }
-          }
-  }
-
-  // Open Request
-  xhr.open(method, url, true);
-
-  // Set Credentials, spec says can be done in UNSENT or OPENED states
-  xhr.withCredentials = withCreds;
-
-  // Set Headers
-  if (headers !== null) {
-    for (prop in headers) {
-      if (headers.hasOwnProperty(prop)) {
-        xhr.setRequestHeader(prop, headers[prop]);
-      }
-    }
-  }
-
-  // Create Promise
-  return new Promise(function (resolve, reject) {
-
-    xhr.onreadystatechange = function () {
-      if (this.readyState === 4) {
-        // Done
-        if (this.status >= 200 && this.status < 300) {
-          resolve(this);
-        } else {
-          //console.log(this);
-          reject({
-            error: new Error('Request failed with status: ' + this.status + ', ' + this.statusText),
-            'xhr': this
-          });
-        }
-      } else if (this.readyState === 3) {
-        // Loading
-        if (typeof onprogress === 'function') {
-          onprogress(this.responseText);
-        }
-      } else if (this.readyState === 2) {
-        // Headers Received
-      } else if (this.readyState === 1) {
-          // Request Open
-        } else if (this.readyState === 0) {
-            // Unset ie, not open
-          }
-    };
-
-    xhr.addEventListener('abort', function () {
-      console.log('Request to ' + url + ' aborted with status: ' + this.status + ', ' + this.statusText);
-    }, false);
-
-    // Send Request
-    if (data !== null) {
-      xhr.send(data);
-    } else {
-      xhr.send();
-    }
-  });
-};
-
-// Add extraEncode as an export
-Object.defineProperty(promiseRequest, 'extraEncode', {
-  configurable: false,
-  enumerable: false,
-  get: function get() {
-    return extraEncode;
-  }
-});
-
-exports.default = promiseRequest;
-},{"xmlhttprequest-cookie":1}],108:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _houndRequest = require('../request/hound-request.js');
-
-var _houndRequest2 = _interopRequireDefault(_houndRequest);
-
-var _MHPagedResponse = require('../models/container/MHPagedResponse.js');
-
-var _MHPagedResponse2 = _interopRequireDefault(_MHPagedResponse);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var MHSearch = function () {
-  function MHSearch() {
-    _classCallCheck(this, MHSearch);
-  }
-
-  _createClass(MHSearch, null, [{
-    key: 'fetchResultsForSearchTerm',
-    value: function fetchResultsForSearchTerm(searchTerm, scopes) {
-      var _this = this;
-
-      var size = arguments.length <= 2 || arguments[2] === undefined ? 12 : arguments[2];
-      var next = arguments.length <= 3 || arguments[3] === undefined ? null : arguments[3];
-
-      var path = 'search/all/' + _houndRequest2.default.extraEncode(searchTerm);
-
-      var promise = undefined;
-      if (next) {
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          url: next
-        });
-      } else {
-        var params = {
-          pageSize: size
-        };
-
-        if (Array.isArray(scopes) && scopes.indexOf(MHSearch.SCOPE_ALL) === -1) {
-          params.types = scopes;
-        }
-
-        promise = (0, _houndRequest2.default)({
-          method: 'GET',
-          endpoint: path,
-          params: params
-        });
-      }
-
-      return promise.then(function (response) {
-        var pagedResponse = new _MHPagedResponse2.default(response);
-
-        pagedResponse.fetchNextOperation = function (newNext) {
-          return _this.fetchResultsForSearchTerm(searchTerm, scopes, size, newNext);
-        };
-
-        return pagedResponse;
-      });
-    }
-
-    // Static Search Scopes enums
-
-  }, {
-    key: 'SCOPE_ALL',
-    get: function get() {
-      return 'all';
-    }
-  }, {
-    key: 'SCOPE_MOVIE',
-    get: function get() {
-      return 'movie';
-    }
-  }, {
-    key: 'SCOPE_TRACK',
-    get: function get() {
-      return 'track';
-    }
-  }, {
-    key: 'SCOPE_ALBUM',
-    get: function get() {
-      return 'album';
-    }
-  }, {
-    key: 'SCOPE_SHOWSERIES',
-    get: function get() {
-      return 'showseries';
-    }
-  }, {
-    key: 'SCOPE_SHOWSEASON',
-    get: function get() {
-      return 'showseason';
-    }
-  }, {
-    key: 'SCOPE_SHOWEPISODE',
-    get: function get() {
-      return 'showepisode';
-    }
-  }, {
-    key: 'SCOPE_BOOK',
-    get: function get() {
-      return 'book';
-    }
-  }, {
-    key: 'SCOPE_GAME',
-    get: function get() {
-      return 'game';
-    }
-  }, {
-    key: 'SCOPE_COLLECTION',
-    get: function get() {
-      return 'collection';
-    }
-  }, {
-    key: 'SCOPE_USER',
-    get: function get() {
-      return 'user';
-    }
-  }, {
-    key: 'SCOPE_CONTRIBUTOR',
-    get: function get() {
-      return 'contributor';
-    }
-  }]);
-
-  return MHSearch;
-}();
-
-exports.default = MHSearch;
-},{"../models/container/MHPagedResponse.js":41,"../request/hound-request.js":106}],109:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
+!function(e,n){"object"==typeof exports&&"object"==typeof module?module.exports=n(require("base-64"),require("form-data")):"function"==typeof define&&define.amd?define(["base-64","form-data"],n):"object"==typeof exports?exports.houndjs=n(require("base-64"),require("form-data")):e.houndjs=n(e["base-64"],e["form-data"])}(this,function(e,n){return function(e){function n(t){if(r[t])return r[t].exports;var o=r[t]={i:t,l:!1,exports:{}};return e[t].call(o.exports,o,o.exports,n),o.l=!0,o.exports}var r={};return n.m=e,n.c=r,n.i=function(e){return e},n.d=function(e,r,t){n.o(e,r)||Object.defineProperty(e,r,{configurable:!1,enumerable:!0,get:t})},n.n=function(e){var r=e&&e.__esModule?function(){return e.default}:function(){return e};return n.d(r,"a",r),r},n.o=function(e,n){return Object.prototype.hasOwnProperty.call(e,n)},n.p="",n(n.s=14)}([function(e,n,r){"use strict";function t(e,n){var r={};for(var t in e)n.indexOf(t)>=0||Object.prototype.hasOwnProperty.call(e,t)&&(r[t]=e[t]);return r}var o=r(1),i=r(2),a=Object.assign||function(e){for(var n=1;n<arguments.length;n++){var r=arguments[n];for(var t in r)Object.prototype.hasOwnProperty.call(r,t)&&(e[t]=r[t])}return e},u=function e(n){var r=n.json,o=n.responseType,i=n.generateRequest,u=r.content,s=r.pagingInfo,c=t(r,["content","pagingInfo"]),p=!(!s||!s.next),d=void 0;d="pagedResponse"===o?u:u?u.map(function(n){return e({json:n,responseType:"pagedResponse",generateRequest:i})}):[];var f=a({content:d,hasMorePages:p},c);return p&&(f.next=function(){return i({method:"GET",url:s.next,responseType:o})}),f},s=function(e,n,r){if("none"===n)return null;if("json"===n)return e;if("pagedResponse"===n||"silo"===n)return u({json:e,responseType:n,generateRequest:r});throw new Error("houndjs Invalid response type set")},c=function e(n){var u=n.method,c=n.endpoint,p=n.url,d=n.params,f=n.paramsProper,l=void 0!==f&&f,v=n.responseType,m=n.debug,g=void 0!==m&&m,h=n.useHimitsu,y=void 0===h||h,b=o.details.getAccessToken(),T=o.getLocale();return r.i(i.a)({url:p?p:o.details.getRootEndpoint()+"/"+c,method:u,params:d,paramsProper:l,authorization:b?"Bearer "+b:void 0,locale:T,debug:g,useHimitsu:y}).then(function(n){if(g){var r=n.json,o=t(n,["json"]);return a({},o,{response:s(r,v,e)})}return s(n,v,e)})};n.a=c},function(e,n,r){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var t=r(2);r.d(n,"details",function(){return T}),r.d(n,"configure",function(){return P}),r.d(n,"setLocale",function(){return w}),r.d(n,"getLocale",function(){return _}),r.d(n,"getLoginDialogURL",function(){return O}),r.d(n,"loginWithAccessToken",function(){return S}),r.d(n,"loginWithCredentials",function(){return k});var o=void 0;"undefined"!=typeof window?o=window.btoa:"function"==typeof btoa?o=btoa:"undefined"==typeof window&&(o=r(12).encode);var i=null,a=null,u=null,s=null,c=null,p="https://api.mediahound.com/",d=null,f=function(){return a?a:i},l=function(){return u},v=function(){return s},m=function(){return c},g=function(){return p},h=function(){return"1.3"},y=function(){return o(s+":"+c)},b=function(){return""+g()+h()},T={getAccessToken:f,getUsername:l,getClientId:v,getClientSecret:m,getOrigin:g,getApiVersion:h,getAuthHeaders:y,getRootEndpoint:b},j=function(){return r.i(t.a)({method:"POST",url:b()+"/security/oauth/token",params:{client_id:v(),client_secret:m(),grant_type:"client_credentials",scope:"public_profile"},authorization:"Basic "+y(),useForms:!0}).then(function(e){var n=e.access_token;return i=n,{accessToken:n}})},P=function(e){var n=e.clientId,r=e.clientSecret,t=e.origin;return s=n,c=r,t&&(p=t),j()},w=function(e){d=e},_=function(){return d},O=function(e){var n=e.redirectUrl,r=e.scope;return b()+"/security/oauth/authorize?client_id="+v()+"&client_secret="+m()+"&scope="+r+"&response_type=token&redirect_uri="+n},S=function(e){var n=e.accessToken;return r.i(t.a)({method:"POST",url:b()+"/security/oauth/check_token",params:{token:n},authorization:"Basic "+y(),useForms:!0}).then(function(e){var r=e.user_name;return a=n,u=r,r})},k=function(e){var n=e.username,o=e.password,i=e.scope;return r.i(t.a)({method:"POST",url:b()+"/security/oauth/token",params:{username:n,password:o,scope:i,grant_type:"password",client_id:v(),client_secret:m()},authorization:"Basic "+y(),useForms:!0}).then(function(e){var n=e.access_token;if(n)return S({accessToken:n});var r=new Error("houndjs Invalid Credentials");throw r.json=e,r})}},function(e,n,r){"use strict";var t=void 0;"undefined"!=typeof window?t=window.FormData:"function"==typeof FormData?t=FormData:"undefined"==typeof window&&(t=r(13));var o=function(e){return Object.keys(e).reduce(function(n,r){var t=e[r];return void 0!==t&&(n[r]=t),n},{})},i=function(e){return Object.keys(e).reduce(function(n,r){return n.append(r,e[r]),n},new t)},a=function(e){var n=o(e);return Object.keys(n).reduce(function(e,r){var t=n[r];if(void 0!==t)if("types"===r){var o=!0,i=!1,a=void 0;try{for(var u,s=t[Symbol.iterator]();!(o=(u=s.next()).done);o=!0){var c=u.value,p=encodeURIComponent(c);e.push(r+"="+p)}}catch(e){i=!0,a=e}finally{try{!o&&s.return&&s.return()}finally{if(i)throw a}}}else{var d=encodeURIComponent(t instanceof Object?JSON.stringify(t):t);e.push(r+"="+d)}return e},[]).join("&")},u=function(e){return JSON.stringify(o(e))},s=function(e){var n=e.method,r=e.url,t=e.params,o=e.authorization,s=e.paramsProper,c=void 0!==s&&s,p=e.useForms,d=void 0!==p&&p,f=e.locale,l=void 0===f?null:f,v=e.debug,m=void 0!==v&&v,g=e.useHimitsu,h=void 0===g||g,y={Accept:"application/json"};o&&(y.Authorization=o),l&&(y["Accept-Language"]=l);var b=void 0;t&&("GET"===n?r=c?r+"?useHimitsu="+h+"&params="+encodeURIComponent(JSON.stringify(t)):r+"?useHimitsu="+h+"&"+a(t):d?b=i(t):(b=u(t),y["Content-Type"]="application/json"));var T=0;return m&&performance&&(T=performance.now()),fetch(r,{method:n,headers:y,body:b}).then(function(e){if(!e.ok){var n=new Error("houndjs Request Failed: "+e.status+" "+e.statusText);throw n.response=e,n}if(m&&performance){var r=performance.now(),t=r-T;return e.json().then(function(e){return{json:e,responseTime:t}}).catch(function(e){return{json:null,responseTime:t}})}return e.json().catch(function(e){return{json:null}})})};n.a=s},function(e,n,r){"use strict";var t=r(0);n.a=function(e){var n=e.ids,o=e.action,i=e.debug,a=void 0!==i&&i;return r.i(t.a)({method:"PUT",endpoint:"graph/action/"+o,params:{ids:n},responseType:"json",debug:a})}},function(e,n,r){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var t=r(0);r.d(n,"create",function(){return o}),r.d(n,"update",function(){return i});var o=function(e){var n=e.name,o=e.description,i=e.content,a=e.debug,u=void 0!==a&&a;return r.i(t.a)({method:"POST",endpoint:"graph/collection/new",params:{name:n,description:o,content:i},responseType:"json",debug:u})},i=function(e){var n=e.id,o=e.operations,i=e.allowDuplicates,a=void 0!==i&&i,u=e.debug,s=void 0!==u&&u;return r.i(t.a)({method:"POST",endpoint:"graph/collection/"+n+"/update",params:{operations:o,allowDuplicates:a},responseType:"none",debug:s})}},function(e,n,r){"use strict";var t=r(0);n.a=function(e){var n=e.filters,o=e.sort,i=e.components,a=e.pageSize,u=e.debug,s=void 0!==u&&u,c=e.useHimitsu,p=void 0===c||c;return r.i(t.a)({method:"GET",endpoint:"graph/explore",params:{filters:n,sort:o,components:i,pageSize:a},paramsProper:!0,responseType:"pagedResponse",debug:s,useHimitsu:p})}},function(e,n,r){"use strict";var t=r(0);n.a=function(e){var n=e.ids,o=e.components,i=e.pageSize,a=e.debug,u=void 0!==a&&a;return r.i(t.a)({method:"GET",endpoint:"graph/lookup",params:{ids:n,components:o,pageSize:i},paramsProper:!0,responseType:"pagedResponse",debug:u})}},function(e,n,r){"use strict";var t=r(0);n.a=function(e){var n=e.factors,o=e.filters,i=e.components,a=e.promote,u=e.pageSize,s=e.debug,c=void 0!==s&&s,p=e.useHimitsu,d=void 0===p||p;return r.i(t.a)({method:"GET",endpoint:"graph/relate",params:{factors:n,filters:o,components:i,promote:a,pageSize:u},paramsProper:!0,responseType:"pagedResponse",debug:c,useHimitsu:d})}},function(e,n,r){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var t=r(0),o=r(11);r.d(n,"all",function(){return i}),r.d(n,"segmented",function(){return a});var i=function(e){var n=e.searchTerm,i=e.scopes,a=e.pageSize,u=e.debug,s=void 0!==u&&u;return r.i(t.a)({method:"GET",endpoint:"search/all/"+r.i(o.a)(n),params:{version:"1.3",pageSize:a,types:Array.isArray(i)?i:void 0},responseType:"pagedResponse",debug:s})},a=function(e){var n=e.searchTerm,i=e.scopes,a=e.siloPageSize,u=e.includeAll,s=void 0===u||u,c=e.debug,p=void 0!==c&&c;return r.i(t.a)({method:"GET",endpoint:"search/segmented/"+r.i(o.a)(n),params:{version:"1.3",siloPageSize:a,includeAll:s,types:Array.isArray(i)?i:void 0},responseType:"silo",debug:p})}},function(e,n,r){"use strict";var t=r(0);n.a=function(e){var n=e.patterns,o=e.sharedPatterns,i=e.global,a=e.silosPerPage,u=e.itemsPerSilo,s=e.debug,c=void 0!==s&&s,p=e.useHimitsu,d=void 0===p||p;return r.i(t.a)({method:"GET",endpoint:"graph/silo",params:{patterns:n,sharedPatterns:o,global:i,silosPerPage:a,itemsPerSilo:u},responseType:"silo",debug:c,paramsProper:!0,useHimitsu:d})}},function(e,n,r){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var t=r(0);r.d(n,"compose",function(){return o});var o=function(e){var n=e.ids,o=e.types,i=e.components,a=e.debug,u=void 0!==a&&a;return r.i(t.a)({method:"GET",endpoint:"graph/trait/compose",params:{ids:n,types:o,components:i},responseType:"silo",debug:u})}},function(e,n,r){"use strict";n.a=function(e){return encodeURIComponent(e).replace(/\-/g,"%2D").replace(/\_/g,"%5F").replace(/\./g,"%2E").replace(/\!/g,"%21").replace(/\~/g,"%7E").replace(/\*/g,"%2A").replace(/\'/g,"%27").replace(/\(/g,"%28").replace(/\)/g,"%29")}},function(n,r){n.exports=e},function(e,r){e.exports=n},function(e,n,r){"use strict";Object.defineProperty(n,"__esModule",{value:!0});var t=r(1);r.d(n,"sdk",function(){return t});var o=r(7);r.d(n,"relate",function(){return o.a});var i=r(5);r.d(n,"explore",function(){return i.a});var a=r(6);r.d(n,"lookup",function(){return a.a});var u=r(9);r.d(n,"silo",function(){return u.a});var s=r(8);r.d(n,"search",function(){return s});var c=r(3);r.d(n,"takeAction",function(){return c.a});var p=r(4);r.d(n,"collection",function(){return p});var d=r(10);r.d(n,"trait",function(){return d});var f=r(0);r.d(n,"houndRequest",function(){return f.a})}])});
+},{"base-64":1,"form-data":29}],32:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -9226,35 +1547,168 @@ var invariant = function(condition, format, a, b, c, d, e, f) {
 module.exports = invariant;
 
 }).call(this,require('_process'))
-},{"_process":114}],110:[function(require,module,exports){
+},{"_process":43}],33:[function(require,module,exports){
+var root = require('./_root');
+
+/** Built-in value references. */
+var Symbol = root.Symbol;
+
+module.exports = Symbol;
+
+},{"./_root":40}],34:[function(require,module,exports){
+var Symbol = require('./_Symbol'),
+    getRawTag = require('./_getRawTag'),
+    objectToString = require('./_objectToString');
+
+/** `Object#toString` result references. */
+var nullTag = '[object Null]',
+    undefinedTag = '[object Undefined]';
+
+/** Built-in value references. */
+var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+
 /**
- * Checks if `value` is a host object in IE < 9.
+ * The base implementation of `getTag` without fallbacks for buggy environments.
  *
  * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a host object, else `false`.
+ * @param {*} value The value to query.
+ * @returns {string} Returns the `toStringTag`.
  */
-function isHostObject(value) {
-  // Many host objects are `Object` objects that can coerce to strings
-  // despite having improperly defined `toString` methods.
-  var result = false;
-  if (value != null && typeof value.toString != 'function') {
-    try {
-      result = !!(value + '');
-    } catch (e) {}
+function baseGetTag(value) {
+  if (value == null) {
+    return value === undefined ? undefinedTag : nullTag;
+  }
+  return (symToStringTag && symToStringTag in Object(value))
+    ? getRawTag(value)
+    : objectToString(value);
+}
+
+module.exports = baseGetTag;
+
+},{"./_Symbol":33,"./_getRawTag":37,"./_objectToString":38}],35:[function(require,module,exports){
+(function (global){
+/** Detect free variable `global` from Node.js. */
+var freeGlobal = typeof global == 'object' && global && global.Object === Object && global;
+
+module.exports = freeGlobal;
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],36:[function(require,module,exports){
+var overArg = require('./_overArg');
+
+/** Built-in value references. */
+var getPrototype = overArg(Object.getPrototypeOf, Object);
+
+module.exports = getPrototype;
+
+},{"./_overArg":39}],37:[function(require,module,exports){
+var Symbol = require('./_Symbol');
+
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
+
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var nativeObjectToString = objectProto.toString;
+
+/** Built-in value references. */
+var symToStringTag = Symbol ? Symbol.toStringTag : undefined;
+
+/**
+ * A specialized version of `baseGetTag` which ignores `Symbol.toStringTag` values.
+ *
+ * @private
+ * @param {*} value The value to query.
+ * @returns {string} Returns the raw `toStringTag`.
+ */
+function getRawTag(value) {
+  var isOwn = hasOwnProperty.call(value, symToStringTag),
+      tag = value[symToStringTag];
+
+  try {
+    value[symToStringTag] = undefined;
+    var unmasked = true;
+  } catch (e) {}
+
+  var result = nativeObjectToString.call(value);
+  if (unmasked) {
+    if (isOwn) {
+      value[symToStringTag] = tag;
+    } else {
+      delete value[symToStringTag];
+    }
   }
   return result;
 }
 
-module.exports = isHostObject;
+module.exports = getRawTag;
 
-},{}],111:[function(require,module,exports){
+},{"./_Symbol":33}],38:[function(require,module,exports){
+/** Used for built-in method references. */
+var objectProto = Object.prototype;
+
+/**
+ * Used to resolve the
+ * [`toStringTag`](http://ecma-international.org/ecma-262/7.0/#sec-object.prototype.tostring)
+ * of values.
+ */
+var nativeObjectToString = objectProto.toString;
+
+/**
+ * Converts `value` to a string using `Object.prototype.toString`.
+ *
+ * @private
+ * @param {*} value The value to convert.
+ * @returns {string} Returns the converted string.
+ */
+function objectToString(value) {
+  return nativeObjectToString.call(value);
+}
+
+module.exports = objectToString;
+
+},{}],39:[function(require,module,exports){
+/**
+ * Creates a unary function that invokes `func` with its argument transformed.
+ *
+ * @private
+ * @param {Function} func The function to wrap.
+ * @param {Function} transform The argument transform.
+ * @returns {Function} Returns the new function.
+ */
+function overArg(func, transform) {
+  return function(arg) {
+    return func(transform(arg));
+  };
+}
+
+module.exports = overArg;
+
+},{}],40:[function(require,module,exports){
+var freeGlobal = require('./_freeGlobal');
+
+/** Detect free variable `self`. */
+var freeSelf = typeof self == 'object' && self && self.Object === Object && self;
+
+/** Used as a reference to the global object. */
+var root = freeGlobal || freeSelf || Function('return this')();
+
+module.exports = root;
+
+},{"./_freeGlobal":35}],41:[function(require,module,exports){
 /**
  * Checks if `value` is object-like. A value is object-like if it's not `null`
  * and has a `typeof` result of "object".
  *
  * @static
  * @memberOf _
+ * @since 4.0.0
  * @category Lang
  * @param {*} value The value to check.
  * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
@@ -9273,35 +1727,31 @@ module.exports = isHostObject;
  * // => false
  */
 function isObjectLike(value) {
-  return !!value && typeof value == 'object';
+  return value != null && typeof value == 'object';
 }
 
 module.exports = isObjectLike;
 
-},{}],112:[function(require,module,exports){
-var isHostObject = require('./_isHostObject'),
+},{}],42:[function(require,module,exports){
+var baseGetTag = require('./_baseGetTag'),
+    getPrototype = require('./_getPrototype'),
     isObjectLike = require('./isObjectLike');
 
 /** `Object#toString` result references. */
 var objectTag = '[object Object]';
 
 /** Used for built-in method references. */
-var objectProto = Object.prototype;
+var funcProto = Function.prototype,
+    objectProto = Object.prototype;
 
 /** Used to resolve the decompiled source of functions. */
-var funcToString = Function.prototype.toString;
+var funcToString = funcProto.toString;
+
+/** Used to check objects for own properties. */
+var hasOwnProperty = objectProto.hasOwnProperty;
 
 /** Used to infer the `Object` constructor. */
 var objectCtorString = funcToString.call(Object);
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objectToString = objectProto.toString;
-
-/** Built-in value references. */
-var getPrototypeOf = Object.getPrototypeOf;
 
 /**
  * Checks if `value` is a plain object, that is, an object created by the
@@ -9309,6 +1759,7 @@ var getPrototypeOf = Object.getPrototypeOf;
  *
  * @static
  * @memberOf _
+ * @since 0.8.0
  * @category Lang
  * @param {*} value The value to check.
  * @returns {boolean} Returns `true` if `value` is a plain object, else `false`.
@@ -9331,72 +1782,119 @@ var getPrototypeOf = Object.getPrototypeOf;
  * // => true
  */
 function isPlainObject(value) {
-  if (!isObjectLike(value) ||
-      objectToString.call(value) != objectTag || isHostObject(value)) {
+  if (!isObjectLike(value) || baseGetTag(value) != objectTag) {
     return false;
   }
-  var proto = getPrototypeOf(value);
+  var proto = getPrototype(value);
   if (proto === null) {
     return true;
   }
-  var Ctor = proto.constructor;
-  return (typeof Ctor == 'function' &&
-    Ctor instanceof Ctor && funcToString.call(Ctor) == objectCtorString);
+  var Ctor = hasOwnProperty.call(proto, 'constructor') && proto.constructor;
+  return typeof Ctor == 'function' && Ctor instanceof Ctor &&
+    funcToString.call(Ctor) == objectCtorString;
 }
 
 module.exports = isPlainObject;
 
-},{"./_isHostObject":110,"./isObjectLike":111}],113:[function(require,module,exports){
-'use strict';
-var propIsEnumerable = Object.prototype.propertyIsEnumerable;
-
-function ToObject(val) {
-	if (val == null) {
-		throw new TypeError('Object.assign cannot be called with null or undefined');
-	}
-
-	return Object(val);
-}
-
-function ownEnumerableKeys(obj) {
-	var keys = Object.getOwnPropertyNames(obj);
-
-	if (Object.getOwnPropertySymbols) {
-		keys = keys.concat(Object.getOwnPropertySymbols(obj));
-	}
-
-	return keys.filter(function (key) {
-		return propIsEnumerable.call(obj, key);
-	});
-}
-
-module.exports = Object.assign || function (target, source) {
-	var from;
-	var keys;
-	var to = ToObject(target);
-
-	for (var s = 1; s < arguments.length; s++) {
-		from = arguments[s];
-		keys = ownEnumerableKeys(Object(from));
-
-		for (var i = 0; i < keys.length; i++) {
-			to[keys[i]] = from[keys[i]];
-		}
-	}
-
-	return to;
-};
-
-},{}],114:[function(require,module,exports){
+},{"./_baseGetTag":34,"./_getPrototype":36,"./isObjectLike":41}],43:[function(require,module,exports){
 // shim for using process in browser
-
 var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
 var queue = [];
 var draining = false;
 var currentQueue;
 var queueIndex = -1;
 
 function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
     draining = false;
     if (currentQueue.length) {
         queue = currentQueue.concat(queue);
@@ -9412,7 +1910,7 @@ function drainQueue() {
     if (draining) {
         return;
     }
-    var timeout = setTimeout(cleanUpNextTick);
+    var timeout = runTimeout(cleanUpNextTick);
     draining = true;
 
     var len = queue.length;
@@ -9429,7 +1927,7 @@ function drainQueue() {
     }
     currentQueue = null;
     draining = false;
-    clearTimeout(timeout);
+    runClearTimeout(timeout);
 }
 
 process.nextTick = function (fun) {
@@ -9441,7 +1939,7 @@ process.nextTick = function (fun) {
     }
     queue.push(new Item(fun, args));
     if (queue.length === 1 && !draining) {
-        setTimeout(drainQueue, 0);
+        runTimeout(drainQueue);
     }
 };
 
@@ -9469,6 +1967,10 @@ process.off = noop;
 process.removeListener = noop;
 process.removeAllListeners = noop;
 process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
 
 process.binding = function (name) {
     throw new Error('process.binding is not supported');
@@ -9480,7 +1982,972 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],115:[function(require,module,exports){
+},{}],44:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+'use strict';
+
+if (process.env.NODE_ENV !== 'production') {
+  var invariant = require('fbjs/lib/invariant');
+  var warning = require('fbjs/lib/warning');
+  var ReactPropTypesSecret = require('./lib/ReactPropTypesSecret');
+  var loggedTypeFailures = {};
+}
+
+/**
+ * Assert that the values match with the type specs.
+ * Error messages are memorized and will only be shown once.
+ *
+ * @param {object} typeSpecs Map of name to a ReactPropType
+ * @param {object} values Runtime values that need to be type-checked
+ * @param {string} location e.g. "prop", "context", "child context"
+ * @param {string} componentName Name of the component for error messages.
+ * @param {?Function} getStack Returns the component stack.
+ * @private
+ */
+function checkPropTypes(typeSpecs, values, location, componentName, getStack) {
+  if (process.env.NODE_ENV !== 'production') {
+    for (var typeSpecName in typeSpecs) {
+      if (typeSpecs.hasOwnProperty(typeSpecName)) {
+        var error;
+        // Prop type validation may throw. In case they do, we don't want to
+        // fail the render phase where it didn't fail before. So we log it.
+        // After these have been cleaned up, we'll let them throw.
+        try {
+          // This is intentionally an invariant that gets caught. It's the same
+          // behavior as without this statement except with a better message.
+          invariant(typeof typeSpecs[typeSpecName] === 'function', '%s: %s type `%s` is invalid; it must be a function, usually from ' + 'the `prop-types` package, but received `%s`.', componentName || 'React class', location, typeSpecName, typeof typeSpecs[typeSpecName]);
+          error = typeSpecs[typeSpecName](values, typeSpecName, componentName, location, null, ReactPropTypesSecret);
+        } catch (ex) {
+          error = ex;
+        }
+        warning(!error || error instanceof Error, '%s: type specification of %s `%s` is invalid; the type checker ' + 'function must return `null` or an `Error` but returned a %s. ' + 'You may have forgotten to pass an argument to the type checker ' + 'creator (arrayOf, instanceOf, objectOf, oneOf, oneOfType, and ' + 'shape all require an argument).', componentName || 'React class', location, typeSpecName, typeof error);
+        if (error instanceof Error && !(error.message in loggedTypeFailures)) {
+          // Only monitor this failure once because there tends to be a lot of the
+          // same error.
+          loggedTypeFailures[error.message] = true;
+
+          var stack = getStack ? getStack() : '';
+
+          warning(false, 'Failed %s type: %s%s', location, error.message, stack != null ? stack : '');
+        }
+      }
+    }
+  }
+}
+
+module.exports = checkPropTypes;
+
+}).call(this,require('_process'))
+},{"./lib/ReactPropTypesSecret":48,"_process":43,"fbjs/lib/invariant":50,"fbjs/lib/warning":51}],45:[function(require,module,exports){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+'use strict';
+
+var emptyFunction = require('fbjs/lib/emptyFunction');
+var invariant = require('fbjs/lib/invariant');
+var ReactPropTypesSecret = require('./lib/ReactPropTypesSecret');
+
+module.exports = function() {
+  function shim(props, propName, componentName, location, propFullName, secret) {
+    if (secret === ReactPropTypesSecret) {
+      // It is still safe when called from React.
+      return;
+    }
+    invariant(
+      false,
+      'Calling PropTypes validators directly is not supported by the `prop-types` package. ' +
+      'Use PropTypes.checkPropTypes() to call them. ' +
+      'Read more at http://fb.me/use-check-prop-types'
+    );
+  };
+  shim.isRequired = shim;
+  function getShim() {
+    return shim;
+  };
+  // Important!
+  // Keep this list in sync with production version in `./factoryWithTypeCheckers.js`.
+  var ReactPropTypes = {
+    array: shim,
+    bool: shim,
+    func: shim,
+    number: shim,
+    object: shim,
+    string: shim,
+    symbol: shim,
+
+    any: shim,
+    arrayOf: getShim,
+    element: shim,
+    instanceOf: getShim,
+    node: shim,
+    objectOf: getShim,
+    oneOf: getShim,
+    oneOfType: getShim,
+    shape: getShim,
+    exact: getShim
+  };
+
+  ReactPropTypes.checkPropTypes = emptyFunction;
+  ReactPropTypes.PropTypes = ReactPropTypes;
+
+  return ReactPropTypes;
+};
+
+},{"./lib/ReactPropTypesSecret":48,"fbjs/lib/emptyFunction":49,"fbjs/lib/invariant":50}],46:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+'use strict';
+
+var emptyFunction = require('fbjs/lib/emptyFunction');
+var invariant = require('fbjs/lib/invariant');
+var warning = require('fbjs/lib/warning');
+var assign = require('object-assign');
+
+var ReactPropTypesSecret = require('./lib/ReactPropTypesSecret');
+var checkPropTypes = require('./checkPropTypes');
+
+module.exports = function(isValidElement, throwOnDirectAccess) {
+  /* global Symbol */
+  var ITERATOR_SYMBOL = typeof Symbol === 'function' && Symbol.iterator;
+  var FAUX_ITERATOR_SYMBOL = '@@iterator'; // Before Symbol spec.
+
+  /**
+   * Returns the iterator method function contained on the iterable object.
+   *
+   * Be sure to invoke the function with the iterable as context:
+   *
+   *     var iteratorFn = getIteratorFn(myIterable);
+   *     if (iteratorFn) {
+   *       var iterator = iteratorFn.call(myIterable);
+   *       ...
+   *     }
+   *
+   * @param {?object} maybeIterable
+   * @return {?function}
+   */
+  function getIteratorFn(maybeIterable) {
+    var iteratorFn = maybeIterable && (ITERATOR_SYMBOL && maybeIterable[ITERATOR_SYMBOL] || maybeIterable[FAUX_ITERATOR_SYMBOL]);
+    if (typeof iteratorFn === 'function') {
+      return iteratorFn;
+    }
+  }
+
+  /**
+   * Collection of methods that allow declaration and validation of props that are
+   * supplied to React components. Example usage:
+   *
+   *   var Props = require('ReactPropTypes');
+   *   var MyArticle = React.createClass({
+   *     propTypes: {
+   *       // An optional string prop named "description".
+   *       description: Props.string,
+   *
+   *       // A required enum prop named "category".
+   *       category: Props.oneOf(['News','Photos']).isRequired,
+   *
+   *       // A prop named "dialog" that requires an instance of Dialog.
+   *       dialog: Props.instanceOf(Dialog).isRequired
+   *     },
+   *     render: function() { ... }
+   *   });
+   *
+   * A more formal specification of how these methods are used:
+   *
+   *   type := array|bool|func|object|number|string|oneOf([...])|instanceOf(...)
+   *   decl := ReactPropTypes.{type}(.isRequired)?
+   *
+   * Each and every declaration produces a function with the same signature. This
+   * allows the creation of custom validation functions. For example:
+   *
+   *  var MyLink = React.createClass({
+   *    propTypes: {
+   *      // An optional string or URI prop named "href".
+   *      href: function(props, propName, componentName) {
+   *        var propValue = props[propName];
+   *        if (propValue != null && typeof propValue !== 'string' &&
+   *            !(propValue instanceof URI)) {
+   *          return new Error(
+   *            'Expected a string or an URI for ' + propName + ' in ' +
+   *            componentName
+   *          );
+   *        }
+   *      }
+   *    },
+   *    render: function() {...}
+   *  });
+   *
+   * @internal
+   */
+
+  var ANONYMOUS = '<<anonymous>>';
+
+  // Important!
+  // Keep this list in sync with production version in `./factoryWithThrowingShims.js`.
+  var ReactPropTypes = {
+    array: createPrimitiveTypeChecker('array'),
+    bool: createPrimitiveTypeChecker('boolean'),
+    func: createPrimitiveTypeChecker('function'),
+    number: createPrimitiveTypeChecker('number'),
+    object: createPrimitiveTypeChecker('object'),
+    string: createPrimitiveTypeChecker('string'),
+    symbol: createPrimitiveTypeChecker('symbol'),
+
+    any: createAnyTypeChecker(),
+    arrayOf: createArrayOfTypeChecker,
+    element: createElementTypeChecker(),
+    instanceOf: createInstanceTypeChecker,
+    node: createNodeChecker(),
+    objectOf: createObjectOfTypeChecker,
+    oneOf: createEnumTypeChecker,
+    oneOfType: createUnionTypeChecker,
+    shape: createShapeTypeChecker,
+    exact: createStrictShapeTypeChecker,
+  };
+
+  /**
+   * inlined Object.is polyfill to avoid requiring consumers ship their own
+   * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/is
+   */
+  /*eslint-disable no-self-compare*/
+  function is(x, y) {
+    // SameValue algorithm
+    if (x === y) {
+      // Steps 1-5, 7-10
+      // Steps 6.b-6.e: +0 != -0
+      return x !== 0 || 1 / x === 1 / y;
+    } else {
+      // Step 6.a: NaN == NaN
+      return x !== x && y !== y;
+    }
+  }
+  /*eslint-enable no-self-compare*/
+
+  /**
+   * We use an Error-like object for backward compatibility as people may call
+   * PropTypes directly and inspect their output. However, we don't use real
+   * Errors anymore. We don't inspect their stack anyway, and creating them
+   * is prohibitively expensive if they are created too often, such as what
+   * happens in oneOfType() for any type before the one that matched.
+   */
+  function PropTypeError(message) {
+    this.message = message;
+    this.stack = '';
+  }
+  // Make `instanceof Error` still work for returned errors.
+  PropTypeError.prototype = Error.prototype;
+
+  function createChainableTypeChecker(validate) {
+    if (process.env.NODE_ENV !== 'production') {
+      var manualPropTypeCallCache = {};
+      var manualPropTypeWarningCount = 0;
+    }
+    function checkType(isRequired, props, propName, componentName, location, propFullName, secret) {
+      componentName = componentName || ANONYMOUS;
+      propFullName = propFullName || propName;
+
+      if (secret !== ReactPropTypesSecret) {
+        if (throwOnDirectAccess) {
+          // New behavior only for users of `prop-types` package
+          invariant(
+            false,
+            'Calling PropTypes validators directly is not supported by the `prop-types` package. ' +
+            'Use `PropTypes.checkPropTypes()` to call them. ' +
+            'Read more at http://fb.me/use-check-prop-types'
+          );
+        } else if (process.env.NODE_ENV !== 'production' && typeof console !== 'undefined') {
+          // Old behavior for people using React.PropTypes
+          var cacheKey = componentName + ':' + propName;
+          if (
+            !manualPropTypeCallCache[cacheKey] &&
+            // Avoid spamming the console because they are often not actionable except for lib authors
+            manualPropTypeWarningCount < 3
+          ) {
+            warning(
+              false,
+              'You are manually calling a React.PropTypes validation ' +
+              'function for the `%s` prop on `%s`. This is deprecated ' +
+              'and will throw in the standalone `prop-types` package. ' +
+              'You may be seeing this warning due to a third-party PropTypes ' +
+              'library. See https://fb.me/react-warning-dont-call-proptypes ' + 'for details.',
+              propFullName,
+              componentName
+            );
+            manualPropTypeCallCache[cacheKey] = true;
+            manualPropTypeWarningCount++;
+          }
+        }
+      }
+      if (props[propName] == null) {
+        if (isRequired) {
+          if (props[propName] === null) {
+            return new PropTypeError('The ' + location + ' `' + propFullName + '` is marked as required ' + ('in `' + componentName + '`, but its value is `null`.'));
+          }
+          return new PropTypeError('The ' + location + ' `' + propFullName + '` is marked as required in ' + ('`' + componentName + '`, but its value is `undefined`.'));
+        }
+        return null;
+      } else {
+        return validate(props, propName, componentName, location, propFullName);
+      }
+    }
+
+    var chainedCheckType = checkType.bind(null, false);
+    chainedCheckType.isRequired = checkType.bind(null, true);
+
+    return chainedCheckType;
+  }
+
+  function createPrimitiveTypeChecker(expectedType) {
+    function validate(props, propName, componentName, location, propFullName, secret) {
+      var propValue = props[propName];
+      var propType = getPropType(propValue);
+      if (propType !== expectedType) {
+        // `propValue` being instance of, say, date/regexp, pass the 'object'
+        // check, but we can offer a more precise error message here rather than
+        // 'of type `object`'.
+        var preciseType = getPreciseType(propValue);
+
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + preciseType + '` supplied to `' + componentName + '`, expected ') + ('`' + expectedType + '`.'));
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createAnyTypeChecker() {
+    return createChainableTypeChecker(emptyFunction.thatReturnsNull);
+  }
+
+  function createArrayOfTypeChecker(typeChecker) {
+    function validate(props, propName, componentName, location, propFullName) {
+      if (typeof typeChecker !== 'function') {
+        return new PropTypeError('Property `' + propFullName + '` of component `' + componentName + '` has invalid PropType notation inside arrayOf.');
+      }
+      var propValue = props[propName];
+      if (!Array.isArray(propValue)) {
+        var propType = getPropType(propValue);
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected an array.'));
+      }
+      for (var i = 0; i < propValue.length; i++) {
+        var error = typeChecker(propValue, i, componentName, location, propFullName + '[' + i + ']', ReactPropTypesSecret);
+        if (error instanceof Error) {
+          return error;
+        }
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createElementTypeChecker() {
+    function validate(props, propName, componentName, location, propFullName) {
+      var propValue = props[propName];
+      if (!isValidElement(propValue)) {
+        var propType = getPropType(propValue);
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected a single ReactElement.'));
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createInstanceTypeChecker(expectedClass) {
+    function validate(props, propName, componentName, location, propFullName) {
+      if (!(props[propName] instanceof expectedClass)) {
+        var expectedClassName = expectedClass.name || ANONYMOUS;
+        var actualClassName = getClassName(props[propName]);
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + actualClassName + '` supplied to `' + componentName + '`, expected ') + ('instance of `' + expectedClassName + '`.'));
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createEnumTypeChecker(expectedValues) {
+    if (!Array.isArray(expectedValues)) {
+      process.env.NODE_ENV !== 'production' ? warning(false, 'Invalid argument supplied to oneOf, expected an instance of array.') : void 0;
+      return emptyFunction.thatReturnsNull;
+    }
+
+    function validate(props, propName, componentName, location, propFullName) {
+      var propValue = props[propName];
+      for (var i = 0; i < expectedValues.length; i++) {
+        if (is(propValue, expectedValues[i])) {
+          return null;
+        }
+      }
+
+      var valuesString = JSON.stringify(expectedValues);
+      return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of value `' + propValue + '` ' + ('supplied to `' + componentName + '`, expected one of ' + valuesString + '.'));
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createObjectOfTypeChecker(typeChecker) {
+    function validate(props, propName, componentName, location, propFullName) {
+      if (typeof typeChecker !== 'function') {
+        return new PropTypeError('Property `' + propFullName + '` of component `' + componentName + '` has invalid PropType notation inside objectOf.');
+      }
+      var propValue = props[propName];
+      var propType = getPropType(propValue);
+      if (propType !== 'object') {
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected an object.'));
+      }
+      for (var key in propValue) {
+        if (propValue.hasOwnProperty(key)) {
+          var error = typeChecker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+          if (error instanceof Error) {
+            return error;
+          }
+        }
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createUnionTypeChecker(arrayOfTypeCheckers) {
+    if (!Array.isArray(arrayOfTypeCheckers)) {
+      process.env.NODE_ENV !== 'production' ? warning(false, 'Invalid argument supplied to oneOfType, expected an instance of array.') : void 0;
+      return emptyFunction.thatReturnsNull;
+    }
+
+    for (var i = 0; i < arrayOfTypeCheckers.length; i++) {
+      var checker = arrayOfTypeCheckers[i];
+      if (typeof checker !== 'function') {
+        warning(
+          false,
+          'Invalid argument supplied to oneOfType. Expected an array of check functions, but ' +
+          'received %s at index %s.',
+          getPostfixForTypeWarning(checker),
+          i
+        );
+        return emptyFunction.thatReturnsNull;
+      }
+    }
+
+    function validate(props, propName, componentName, location, propFullName) {
+      for (var i = 0; i < arrayOfTypeCheckers.length; i++) {
+        var checker = arrayOfTypeCheckers[i];
+        if (checker(props, propName, componentName, location, propFullName, ReactPropTypesSecret) == null) {
+          return null;
+        }
+      }
+
+      return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` supplied to ' + ('`' + componentName + '`.'));
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createNodeChecker() {
+    function validate(props, propName, componentName, location, propFullName) {
+      if (!isNode(props[propName])) {
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` supplied to ' + ('`' + componentName + '`, expected a ReactNode.'));
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createShapeTypeChecker(shapeTypes) {
+    function validate(props, propName, componentName, location, propFullName) {
+      var propValue = props[propName];
+      var propType = getPropType(propValue);
+      if (propType !== 'object') {
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type `' + propType + '` ' + ('supplied to `' + componentName + '`, expected `object`.'));
+      }
+      for (var key in shapeTypes) {
+        var checker = shapeTypes[key];
+        if (!checker) {
+          continue;
+        }
+        var error = checker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+        if (error) {
+          return error;
+        }
+      }
+      return null;
+    }
+    return createChainableTypeChecker(validate);
+  }
+
+  function createStrictShapeTypeChecker(shapeTypes) {
+    function validate(props, propName, componentName, location, propFullName) {
+      var propValue = props[propName];
+      var propType = getPropType(propValue);
+      if (propType !== 'object') {
+        return new PropTypeError('Invalid ' + location + ' `' + propFullName + '` of type `' + propType + '` ' + ('supplied to `' + componentName + '`, expected `object`.'));
+      }
+      // We need to check all keys in case some are required but missing from
+      // props.
+      var allKeys = assign({}, props[propName], shapeTypes);
+      for (var key in allKeys) {
+        var checker = shapeTypes[key];
+        if (!checker) {
+          return new PropTypeError(
+            'Invalid ' + location + ' `' + propFullName + '` key `' + key + '` supplied to `' + componentName + '`.' +
+            '\nBad object: ' + JSON.stringify(props[propName], null, '  ') +
+            '\nValid keys: ' +  JSON.stringify(Object.keys(shapeTypes), null, '  ')
+          );
+        }
+        var error = checker(propValue, key, componentName, location, propFullName + '.' + key, ReactPropTypesSecret);
+        if (error) {
+          return error;
+        }
+      }
+      return null;
+    }
+
+    return createChainableTypeChecker(validate);
+  }
+
+  function isNode(propValue) {
+    switch (typeof propValue) {
+      case 'number':
+      case 'string':
+      case 'undefined':
+        return true;
+      case 'boolean':
+        return !propValue;
+      case 'object':
+        if (Array.isArray(propValue)) {
+          return propValue.every(isNode);
+        }
+        if (propValue === null || isValidElement(propValue)) {
+          return true;
+        }
+
+        var iteratorFn = getIteratorFn(propValue);
+        if (iteratorFn) {
+          var iterator = iteratorFn.call(propValue);
+          var step;
+          if (iteratorFn !== propValue.entries) {
+            while (!(step = iterator.next()).done) {
+              if (!isNode(step.value)) {
+                return false;
+              }
+            }
+          } else {
+            // Iterator will provide entry [k,v] tuples rather than values.
+            while (!(step = iterator.next()).done) {
+              var entry = step.value;
+              if (entry) {
+                if (!isNode(entry[1])) {
+                  return false;
+                }
+              }
+            }
+          }
+        } else {
+          return false;
+        }
+
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  function isSymbol(propType, propValue) {
+    // Native Symbol.
+    if (propType === 'symbol') {
+      return true;
+    }
+
+    // 19.4.3.5 Symbol.prototype[@@toStringTag] === 'Symbol'
+    if (propValue['@@toStringTag'] === 'Symbol') {
+      return true;
+    }
+
+    // Fallback for non-spec compliant Symbols which are polyfilled.
+    if (typeof Symbol === 'function' && propValue instanceof Symbol) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Equivalent of `typeof` but with special handling for array and regexp.
+  function getPropType(propValue) {
+    var propType = typeof propValue;
+    if (Array.isArray(propValue)) {
+      return 'array';
+    }
+    if (propValue instanceof RegExp) {
+      // Old webkits (at least until Android 4.0) return 'function' rather than
+      // 'object' for typeof a RegExp. We'll normalize this here so that /bla/
+      // passes PropTypes.object.
+      return 'object';
+    }
+    if (isSymbol(propType, propValue)) {
+      return 'symbol';
+    }
+    return propType;
+  }
+
+  // This handles more types than `getPropType`. Only used for error messages.
+  // See `createPrimitiveTypeChecker`.
+  function getPreciseType(propValue) {
+    if (typeof propValue === 'undefined' || propValue === null) {
+      return '' + propValue;
+    }
+    var propType = getPropType(propValue);
+    if (propType === 'object') {
+      if (propValue instanceof Date) {
+        return 'date';
+      } else if (propValue instanceof RegExp) {
+        return 'regexp';
+      }
+    }
+    return propType;
+  }
+
+  // Returns a string that is postfixed to a warning about an invalid type.
+  // For example, "undefined" or "of type array"
+  function getPostfixForTypeWarning(value) {
+    var type = getPreciseType(value);
+    switch (type) {
+      case 'array':
+      case 'object':
+        return 'an ' + type;
+      case 'boolean':
+      case 'date':
+      case 'regexp':
+        return 'a ' + type;
+      default:
+        return type;
+    }
+  }
+
+  // Returns class name of the object, if any.
+  function getClassName(propValue) {
+    if (!propValue.constructor || !propValue.constructor.name) {
+      return ANONYMOUS;
+    }
+    return propValue.constructor.name;
+  }
+
+  ReactPropTypes.checkPropTypes = checkPropTypes;
+  ReactPropTypes.PropTypes = ReactPropTypes;
+
+  return ReactPropTypes;
+};
+
+}).call(this,require('_process'))
+},{"./checkPropTypes":44,"./lib/ReactPropTypesSecret":48,"_process":43,"fbjs/lib/emptyFunction":49,"fbjs/lib/invariant":50,"fbjs/lib/warning":51,"object-assign":52}],47:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+if (process.env.NODE_ENV !== 'production') {
+  var REACT_ELEMENT_TYPE = (typeof Symbol === 'function' &&
+    Symbol.for &&
+    Symbol.for('react.element')) ||
+    0xeac7;
+
+  var isValidElement = function(object) {
+    return typeof object === 'object' &&
+      object !== null &&
+      object.$$typeof === REACT_ELEMENT_TYPE;
+  };
+
+  // By explicitly using `prop-types` you are opting into new development behavior.
+  // http://fb.me/prop-types-in-prod
+  var throwOnDirectAccess = true;
+  module.exports = require('./factoryWithTypeCheckers')(isValidElement, throwOnDirectAccess);
+} else {
+  // By explicitly using `prop-types` you are opting into new production behavior.
+  // http://fb.me/prop-types-in-prod
+  module.exports = require('./factoryWithThrowingShims')();
+}
+
+}).call(this,require('_process'))
+},{"./factoryWithThrowingShims":45,"./factoryWithTypeCheckers":46,"_process":43}],48:[function(require,module,exports){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+'use strict';
+
+var ReactPropTypesSecret = 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED';
+
+module.exports = ReactPropTypesSecret;
+
+},{}],49:[function(require,module,exports){
+"use strict";
+
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * 
+ */
+
+function makeEmptyFunction(arg) {
+  return function () {
+    return arg;
+  };
+}
+
+/**
+ * This function accepts and discards inputs; it has no side effects. This is
+ * primarily useful idiomatically for overridable function endpoints which
+ * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
+ */
+var emptyFunction = function emptyFunction() {};
+
+emptyFunction.thatReturns = makeEmptyFunction;
+emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
+emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
+emptyFunction.thatReturnsNull = makeEmptyFunction(null);
+emptyFunction.thatReturnsThis = function () {
+  return this;
+};
+emptyFunction.thatReturnsArgument = function (arg) {
+  return arg;
+};
+
+module.exports = emptyFunction;
+},{}],50:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2013-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+'use strict';
+
+/**
+ * Use invariant() to assert state which your program assumes to be true.
+ *
+ * Provide sprintf-style format (only %s is supported) and arguments
+ * to provide information about what broke and what you were
+ * expecting.
+ *
+ * The invariant message will be stripped in production, but the invariant
+ * will remain to ensure logic does not differ in production.
+ */
+
+var validateFormat = function validateFormat(format) {};
+
+if (process.env.NODE_ENV !== 'production') {
+  validateFormat = function validateFormat(format) {
+    if (format === undefined) {
+      throw new Error('invariant requires an error message argument');
+    }
+  };
+}
+
+function invariant(condition, format, a, b, c, d, e, f) {
+  validateFormat(format);
+
+  if (!condition) {
+    var error;
+    if (format === undefined) {
+      error = new Error('Minified exception occurred; use the non-minified dev environment ' + 'for the full error message and additional helpful warnings.');
+    } else {
+      var args = [a, b, c, d, e, f];
+      var argIndex = 0;
+      error = new Error(format.replace(/%s/g, function () {
+        return args[argIndex++];
+      }));
+      error.name = 'Invariant Violation';
+    }
+
+    error.framesToPop = 1; // we don't care about invariant's own frame
+    throw error;
+  }
+}
+
+module.exports = invariant;
+}).call(this,require('_process'))
+},{"_process":43}],51:[function(require,module,exports){
+(function (process){
+/**
+ * Copyright (c) 2014-present, Facebook, Inc.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+'use strict';
+
+var emptyFunction = require('./emptyFunction');
+
+/**
+ * Similar to invariant but only logs a warning if the condition is not met.
+ * This can be used to log issues in development environments in critical
+ * paths. Removing the logging code for production environments will keep the
+ * same logic and follow the same code paths.
+ */
+
+var warning = emptyFunction;
+
+if (process.env.NODE_ENV !== 'production') {
+  var printWarning = function printWarning(format) {
+    for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+      args[_key - 1] = arguments[_key];
+    }
+
+    var argIndex = 0;
+    var message = 'Warning: ' + format.replace(/%s/g, function () {
+      return args[argIndex++];
+    });
+    if (typeof console !== 'undefined') {
+      console.error(message);
+    }
+    try {
+      // --- Welcome to debugging React ---
+      // This error was thrown as a convenience so that you can use this stack
+      // to find the callsite that caused this warning to fire.
+      throw new Error(message);
+    } catch (x) {}
+  };
+
+  warning = function warning(condition, format) {
+    if (format === undefined) {
+      throw new Error('`warning(condition, format, ...args)` requires a warning ' + 'message argument');
+    }
+
+    if (format.indexOf('Failed Composite propType: ') === 0) {
+      return; // Ignore CompositeComponent proptype check.
+    }
+
+    if (!condition) {
+      for (var _len2 = arguments.length, args = Array(_len2 > 2 ? _len2 - 2 : 0), _key2 = 2; _key2 < _len2; _key2++) {
+        args[_key2 - 2] = arguments[_key2];
+      }
+
+      printWarning.apply(undefined, [format].concat(args));
+    }
+  };
+}
+
+module.exports = warning;
+}).call(this,require('_process'))
+},{"./emptyFunction":49,"_process":43}],52:[function(require,module,exports){
+/*
+object-assign
+(c) Sindre Sorhus
+@license MIT
+*/
+
+'use strict';
+/* eslint-disable no-unused-vars */
+var getOwnPropertySymbols = Object.getOwnPropertySymbols;
+var hasOwnProperty = Object.prototype.hasOwnProperty;
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function toObject(val) {
+	if (val === null || val === undefined) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+function shouldUseNative() {
+	try {
+		if (!Object.assign) {
+			return false;
+		}
+
+		// Detect buggy property enumeration order in older V8 versions.
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=4118
+		var test1 = new String('abc');  // eslint-disable-line no-new-wrappers
+		test1[5] = 'de';
+		if (Object.getOwnPropertyNames(test1)[0] === '5') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test2 = {};
+		for (var i = 0; i < 10; i++) {
+			test2['_' + String.fromCharCode(i)] = i;
+		}
+		var order2 = Object.getOwnPropertyNames(test2).map(function (n) {
+			return test2[n];
+		});
+		if (order2.join('') !== '0123456789') {
+			return false;
+		}
+
+		// https://bugs.chromium.org/p/v8/issues/detail?id=3056
+		var test3 = {};
+		'abcdefghijklmnopqrst'.split('').forEach(function (letter) {
+			test3[letter] = letter;
+		});
+		if (Object.keys(Object.assign({}, test3)).join('') !==
+				'abcdefghijklmnopqrst') {
+			return false;
+		}
+
+		return true;
+	} catch (err) {
+		// We don't expect any of the above to throw, but better to be safe.
+		return false;
+	}
+}
+
+module.exports = shouldUseNative() ? Object.assign : function (target, source) {
+	var from;
+	var to = toObject(target);
+	var symbols;
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = Object(arguments[s]);
+
+		for (var key in from) {
+			if (hasOwnProperty.call(from, key)) {
+				to[key] = from[key];
+			}
+		}
+
+		if (getOwnPropertySymbols) {
+			symbols = getOwnPropertySymbols(from);
+			for (var i = 0; i < symbols.length; i++) {
+				if (propIsEnumerable.call(from, symbols[i])) {
+					to[symbols[i]] = from[symbols[i]];
+				}
+			}
+		}
+	}
+
+	return to;
+};
+
+},{}],53:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -9522,29 +2989,6 @@ function mapStateToProps(state) {
   };
 }
 
-function mapDispatchToProps(dispatch) {
-  return {
-    inputFocused: function inputFocused(shouldRenderSuggestions) {
-      dispatch((0, _reducerAndActions.inputFocused)(shouldRenderSuggestions));
-    },
-    inputBlurred: function inputBlurred() {
-      dispatch((0, _reducerAndActions.inputBlurred)());
-    },
-    inputChanged: function inputChanged(shouldRenderSuggestions, lastAction) {
-      dispatch((0, _reducerAndActions.inputChanged)(shouldRenderSuggestions, lastAction));
-    },
-    updateFocusedSuggestion: function updateFocusedSuggestion(sectionIndex, suggestionIndex, value) {
-      dispatch((0, _reducerAndActions.updateFocusedSuggestion)(sectionIndex, suggestionIndex, value));
-    },
-    revealSuggestions: function revealSuggestions() {
-      dispatch((0, _reducerAndActions.revealSuggestions)());
-    },
-    closeSuggestions: function closeSuggestions(lastAction) {
-      dispatch((0, _reducerAndActions.closeSuggestions)(lastAction));
-    }
-  };
-}
-
 var Autosuggest = function (_Component) {
   _inherits(Autosuggest, _Component);
 
@@ -9553,7 +2997,12 @@ var Autosuggest = function (_Component) {
 
     var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Autosuggest).call(this));
 
-    _this.saveInput = _this.saveInput.bind(_this);
+    _this.storeInputReference = _this.storeInputReference.bind(_this);
+    _this.renderSuggestion = _this.renderSuggestion.bind(_this);
+    _this.onSuggestionMouseEnter = _this.onSuggestionMouseEnter.bind(_this);
+    _this.onSuggestionMouseLeave = _this.onSuggestionMouseLeave.bind(_this);
+    _this.onSuggestionMouseDown = _this.onSuggestionMouseDown.bind(_this);
+    _this.onSuggestionClick = _this.onSuggestionClick.bind(_this);
     return _this;
   }
 
@@ -9570,8 +3019,12 @@ var Autosuggest = function (_Component) {
         var value = inputProps.value;
 
 
-        if (isCollapsed && lastAction !== 'click' && lastAction !== 'enter' && suggestions.length > 0 && shouldRenderSuggestions(value)) {
-          revealSuggestions();
+        if (suggestions.length > 0 && shouldRenderSuggestions(value)) {
+          this.maybeFocusFirstSuggestion();
+
+          if (isCollapsed && lastAction !== 'click' && lastAction !== 'enter') {
+            revealSuggestions();
+          }
         }
       }
     }
@@ -9640,8 +3093,8 @@ var Autosuggest = function (_Component) {
       throw new Error('Couldn\'t find suggestion element');
     }
   }, {
-    key: 'maybeEmitOnChange',
-    value: function maybeEmitOnChange(event, newValue, method) {
+    key: 'maybeCallOnChange',
+    value: function maybeCallOnChange(event, newValue, method) {
       var _props$inputProps = this.props.inputProps;
       var value = _props$inputProps.value;
       var onChange = _props$inputProps.onChange;
@@ -9652,56 +3105,151 @@ var Autosuggest = function (_Component) {
       }
     }
   }, {
+    key: 'maybeCallOnSuggestionsUpdateRequested',
+    value: function maybeCallOnSuggestionsUpdateRequested(data) {
+      var _props3 = this.props;
+      var onSuggestionsUpdateRequested = _props3.onSuggestionsUpdateRequested;
+      var shouldRenderSuggestions = _props3.shouldRenderSuggestions;
+
+
+      if (shouldRenderSuggestions(data.value)) {
+        onSuggestionsUpdateRequested(data);
+      }
+    }
+  }, {
+    key: 'maybeFocusFirstSuggestion',
+    value: function maybeFocusFirstSuggestion() {
+      var _props4 = this.props;
+      var focusFirstSuggestion = _props4.focusFirstSuggestion;
+      var multiSection = _props4.multiSection;
+      var updateFocusedSuggestion = _props4.updateFocusedSuggestion;
+
+
+      if (focusFirstSuggestion) {
+        updateFocusedSuggestion(multiSection ? 0 : null, 0);
+      }
+    }
+  }, {
     key: 'willRenderSuggestions',
     value: function willRenderSuggestions() {
-      var _props3 = this.props;
-      var suggestions = _props3.suggestions;
-      var inputProps = _props3.inputProps;
-      var shouldRenderSuggestions = _props3.shouldRenderSuggestions;
+      var _props5 = this.props;
+      var suggestions = _props5.suggestions;
+      var inputProps = _props5.inputProps;
+      var shouldRenderSuggestions = _props5.shouldRenderSuggestions;
       var value = inputProps.value;
 
 
       return suggestions.length > 0 && shouldRenderSuggestions(value);
     }
   }, {
-    key: 'saveInput',
-    value: function saveInput(autowhatever) {
+    key: 'storeInputReference',
+    value: function storeInputReference(autowhatever) {
       if (autowhatever !== null) {
-        var input = autowhatever.refs.input;
+        var input = autowhatever.input;
 
         this.input = input;
         this.props.inputRef(input);
       }
     }
   }, {
-    key: 'render',
-    value: function render() {
+    key: 'onSuggestionMouseEnter',
+    value: function onSuggestionMouseEnter(event, _ref) {
+      var sectionIndex = _ref.sectionIndex;
+      var itemIndex = _ref.itemIndex;
+
+      this.props.updateFocusedSuggestion(sectionIndex, itemIndex);
+    }
+  }, {
+    key: 'onSuggestionMouseLeave',
+    value: function onSuggestionMouseLeave() {
+      this.props.updateFocusedSuggestion(null, null);
+    }
+  }, {
+    key: 'onSuggestionMouseDown',
+    value: function onSuggestionMouseDown() {
+      this.justClickedOnSuggestion = true;
+    }
+  }, {
+    key: 'onSuggestionClick',
+    value: function onSuggestionClick(event) {
       var _this2 = this;
 
-      var _props4 = this.props;
-      var suggestions = _props4.suggestions;
-      var onSuggestionsUpdateRequested = _props4.onSuggestionsUpdateRequested;
-      var renderSuggestion = _props4.renderSuggestion;
-      var inputProps = _props4.inputProps;
-      var shouldRenderSuggestions = _props4.shouldRenderSuggestions;
-      var onSuggestionSelected = _props4.onSuggestionSelected;
-      var multiSection = _props4.multiSection;
-      var renderSectionTitle = _props4.renderSectionTitle;
-      var id = _props4.id;
-      var getSectionSuggestions = _props4.getSectionSuggestions;
-      var focusInputOnSuggestionClick = _props4.focusInputOnSuggestionClick;
-      var theme = _props4.theme;
-      var isFocused = _props4.isFocused;
-      var isCollapsed = _props4.isCollapsed;
-      var focusedSectionIndex = _props4.focusedSectionIndex;
-      var focusedSuggestionIndex = _props4.focusedSuggestionIndex;
-      var valueBeforeUpDown = _props4.valueBeforeUpDown;
-      var inputFocused = _props4.inputFocused;
-      var inputBlurred = _props4.inputBlurred;
-      var inputChanged = _props4.inputChanged;
-      var updateFocusedSuggestion = _props4.updateFocusedSuggestion;
-      var revealSuggestions = _props4.revealSuggestions;
-      var closeSuggestions = _props4.closeSuggestions;
+      var _props6 = this.props;
+      var inputProps = _props6.inputProps;
+      var onSuggestionSelected = _props6.onSuggestionSelected;
+      var focusInputOnSuggestionClick = _props6.focusInputOnSuggestionClick;
+      var inputBlurred = _props6.inputBlurred;
+      var closeSuggestions = _props6.closeSuggestions;
+      var onBlur = inputProps.onBlur;
+
+      var _getSuggestionIndices = this.getSuggestionIndices(this.findSuggestionElement(event.target));
+
+      var sectionIndex = _getSuggestionIndices.sectionIndex;
+      var suggestionIndex = _getSuggestionIndices.suggestionIndex;
+
+      var clickedSuggestion = this.getSuggestion(sectionIndex, suggestionIndex);
+      var clickedSuggestionValue = this.props.getSuggestionValue(clickedSuggestion);
+
+      this.maybeCallOnChange(event, clickedSuggestionValue, 'click');
+      onSuggestionSelected(event, {
+        suggestion: clickedSuggestion,
+        suggestionValue: clickedSuggestionValue,
+        sectionIndex: sectionIndex,
+        method: 'click'
+      });
+      closeSuggestions('click');
+
+      if (focusInputOnSuggestionClick === true) {
+        this.input.focus();
+      } else {
+        inputBlurred();
+        onBlur && onBlur(this.onBlurEvent);
+      }
+
+      this.maybeCallOnSuggestionsUpdateRequested({ value: clickedSuggestionValue, reason: 'click' });
+
+      setTimeout(function () {
+        _this2.justClickedOnSuggestion = false;
+      });
+    }
+  }, {
+    key: 'renderSuggestion',
+    value: function renderSuggestion(suggestion) {
+      var _props7 = this.props;
+      var inputProps = _props7.inputProps;
+      var valueBeforeUpDown = _props7.valueBeforeUpDown;
+      var value = inputProps.value;
+
+
+      return this.props.renderSuggestion(suggestion, { value: value, valueBeforeUpDown: valueBeforeUpDown });
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var _this3 = this;
+
+      var _props8 = this.props;
+      var suggestions = _props8.suggestions;
+      var inputProps = _props8.inputProps;
+      var shouldRenderSuggestions = _props8.shouldRenderSuggestions;
+      var onSuggestionSelected = _props8.onSuggestionSelected;
+      var multiSection = _props8.multiSection;
+      var renderSectionTitle = _props8.renderSectionTitle;
+      var id = _props8.id;
+      var getSectionSuggestions = _props8.getSectionSuggestions;
+      var theme = _props8.theme;
+      var isFocused = _props8.isFocused;
+      var isCollapsed = _props8.isCollapsed;
+      var focusedSectionIndex = _props8.focusedSectionIndex;
+      var focusedSuggestionIndex = _props8.focusedSuggestionIndex;
+      var valueBeforeUpDown = _props8.valueBeforeUpDown;
+      var inputFocused = _props8.inputFocused;
+      var inputBlurred = _props8.inputBlurred;
+      var inputChanged = _props8.inputChanged;
+      var updateFocusedSuggestion = _props8.updateFocusedSuggestion;
+      var revealSuggestions = _props8.revealSuggestions;
+      var closeSuggestions = _props8.closeSuggestions;
+      var getSuggestionValue = _props8.getSuggestionValue;
       var value = inputProps.value;
       var _onBlur = inputProps.onBlur;
       var _onFocus = inputProps.onFocus;
@@ -9711,66 +3259,84 @@ var Autosuggest = function (_Component) {
       var items = isOpen ? suggestions : [];
       var autowhateverInputProps = _extends({}, inputProps, {
         onFocus: function onFocus(event) {
-          if (!_this2.justClickedOnSuggestion) {
+          if (!_this3.justClickedOnSuggestion) {
             inputFocused(shouldRenderSuggestions(value));
             _onFocus && _onFocus(event);
+
+            if (suggestions.length > 0) {
+              _this3.maybeFocusFirstSuggestion();
+            }
           }
         },
         onBlur: function onBlur(event) {
-          _this2.onBlurEvent = event;
+          _this3.onBlurEvent = event;
 
-          if (!_this2.justClickedOnSuggestion) {
+          if (!_this3.justClickedOnSuggestion) {
             inputBlurred();
             _onBlur && _onBlur(event);
 
             if (valueBeforeUpDown !== null && value !== valueBeforeUpDown) {
-              onSuggestionsUpdateRequested({ value: value, reason: 'blur' });
+              _this3.maybeCallOnSuggestionsUpdateRequested({ value: value, reason: 'blur' });
             }
           }
         },
         onChange: function onChange(event) {
           var value = event.target.value;
-          var _props5 = _this2.props;
-          var shouldRenderSuggestions = _props5.shouldRenderSuggestions;
-          var onSuggestionsUpdateRequested = _props5.onSuggestionsUpdateRequested;
+          var shouldRenderSuggestions = _this3.props.shouldRenderSuggestions;
 
 
-          _this2.maybeEmitOnChange(event, value, 'type');
+          _this3.maybeCallOnChange(event, value, 'type');
           inputChanged(shouldRenderSuggestions(value), 'type');
-          onSuggestionsUpdateRequested({ value: value, reason: 'type' });
+          _this3.maybeCallOnSuggestionsUpdateRequested({ value: value, reason: 'type' });
         },
         onKeyDown: function onKeyDown(event, data) {
           switch (event.key) {
             case 'ArrowDown':
             case 'ArrowUp':
               if (isCollapsed) {
-                if (_this2.willRenderSuggestions()) {
+                if (_this3.willRenderSuggestions()) {
                   revealSuggestions();
                 }
               } else if (suggestions.length > 0) {
                 var newFocusedSectionIndex = data.newFocusedSectionIndex;
                 var newFocusedItemIndex = data.newFocusedItemIndex;
 
-                var newValue = newFocusedItemIndex === null ? valueBeforeUpDown : _this2.getSuggestionValueByIndex(newFocusedSectionIndex, newFocusedItemIndex);
+
+                var newValue = void 0;
+
+                if (newFocusedItemIndex === null) {
+                  // valueBeforeUpDown can be null if, for example, user
+                  // hovers on the first suggestion and then pressed Up.
+                  // If that happens, use the original input value.
+                  newValue = valueBeforeUpDown === null ? value : valueBeforeUpDown;
+                } else {
+                  newValue = _this3.getSuggestionValueByIndex(newFocusedSectionIndex, newFocusedItemIndex);
+                }
 
                 updateFocusedSuggestion(newFocusedSectionIndex, newFocusedItemIndex, value);
-                _this2.maybeEmitOnChange(event, newValue, event.key === 'ArrowDown' ? 'down' : 'up');
+                _this3.maybeCallOnChange(event, newValue, event.key === 'ArrowDown' ? 'down' : 'up');
               }
               event.preventDefault();
               break;
 
             case 'Enter':
               {
-                var focusedSuggestion = _this2.getFocusedSuggestion();
+                var focusedSuggestion = _this3.getFocusedSuggestion();
+
+                closeSuggestions('enter');
 
                 if (focusedSuggestion !== null) {
-                  closeSuggestions('enter');
+                  var _newValue = getSuggestionValue(focusedSuggestion);
+
                   onSuggestionSelected(event, {
                     suggestion: focusedSuggestion,
-                    suggestionValue: value,
+                    suggestionValue: _newValue,
+                    sectionIndex: focusedSectionIndex,
                     method: 'enter'
                   });
-                  onSuggestionsUpdateRequested({ value: value, reason: 'enter' });
+
+                  _this3.maybeCallOnChange(event, _newValue, 'enter');
+                  _this3.maybeCallOnSuggestionsUpdateRequested({ value: _newValue, reason: 'enter' });
                 }
                 break;
               }
@@ -9787,12 +3353,12 @@ var Autosuggest = function (_Component) {
               if (valueBeforeUpDown === null) {
                 // Didn't interact with Up/Down
                 if (!isOpen) {
-                  _this2.maybeEmitOnChange(event, '', 'escape');
-                  onSuggestionsUpdateRequested({ value: '', reason: 'escape' });
+                  _this3.maybeCallOnChange(event, '', 'escape');
+                  _this3.maybeCallOnSuggestionsUpdateRequested({ value: '', reason: 'escape' });
                 }
               } else {
                 // Interacted with Up/Down
-                _this2.maybeEmitOnChange(event, valueBeforeUpDown, 'escape');
+                _this3.maybeCallOnChange(event, valueBeforeUpDown, 'escape');
               }
 
               closeSuggestions('escape');
@@ -9802,46 +3368,6 @@ var Autosuggest = function (_Component) {
           _onKeyDown && _onKeyDown(event);
         }
       });
-      var onMouseEnter = function onMouseEnter(event, _ref) {
-        var sectionIndex = _ref.sectionIndex;
-        var itemIndex = _ref.itemIndex;
-
-        updateFocusedSuggestion(sectionIndex, itemIndex);
-      };
-      var onMouseLeave = function onMouseLeave() {
-        updateFocusedSuggestion(null, null);
-      };
-      var onMouseDown = function onMouseDown() {
-        _this2.justClickedOnSuggestion = true;
-      };
-      var onClick = function onClick(event) {
-        var _getSuggestionIndices = _this2.getSuggestionIndices(_this2.findSuggestionElement(event.target));
-
-        var sectionIndex = _getSuggestionIndices.sectionIndex;
-        var suggestionIndex = _getSuggestionIndices.suggestionIndex;
-
-        var clickedSuggestion = _this2.getSuggestion(sectionIndex, suggestionIndex);
-        var clickedSuggestionValue = _this2.props.getSuggestionValue(clickedSuggestion);
-
-        _this2.maybeEmitOnChange(event, clickedSuggestionValue, 'click');
-        onSuggestionSelected(event, {
-          suggestion: clickedSuggestion,
-          suggestionValue: clickedSuggestionValue,
-          method: 'click'
-        });
-        closeSuggestions('click');
-
-        if (focusInputOnSuggestionClick === true) {
-          _this2.input.focus();
-        } else {
-          inputBlurred();
-          _onBlur && _onBlur(_this2.onBlurEvent);
-        }
-
-        onSuggestionsUpdateRequested({ value: clickedSuggestionValue, reason: 'click' });
-
-        _this2.justClickedOnSuggestion = false;
-      };
       var itemProps = function itemProps(_ref2) {
         var sectionIndex = _ref2.sectionIndex;
         var itemIndex = _ref2.itemIndex;
@@ -9849,20 +3375,18 @@ var Autosuggest = function (_Component) {
         return {
           'data-section-index': sectionIndex,
           'data-suggestion-index': itemIndex,
-          onMouseEnter: onMouseEnter,
-          onMouseLeave: onMouseLeave,
-          onMouseDown: onMouseDown,
-          onTouchStart: onMouseDown, // Because on iOS `onMouseDown` is not triggered
-          onClick: onClick
+          onMouseEnter: _this3.onSuggestionMouseEnter,
+          onMouseLeave: _this3.onSuggestionMouseLeave,
+          onMouseDown: _this3.onSuggestionMouseDown,
+          onTouchStart: _this3.onSuggestionMouseDown, // Because on iOS `onMouseDown` is not triggered
+          onClick: _this3.onSuggestionClick
         };
       };
-      var renderItem = function renderItem(item) {
-        return renderSuggestion(item, { value: value, valueBeforeUpDown: valueBeforeUpDown });
-      };
 
-      return _react2.default.createElement(_reactAutowhatever2.default, { multiSection: multiSection,
+      return _react2.default.createElement(_reactAutowhatever2.default, {
+        multiSection: multiSection,
         items: items,
-        renderItem: renderItem,
+        renderItem: this.renderSuggestion,
         renderSectionTitle: renderSectionTitle,
         getSectionItems: getSectionSuggestions,
         focusedSectionIndex: focusedSectionIndex,
@@ -9871,7 +3395,7 @@ var Autosuggest = function (_Component) {
         itemProps: itemProps,
         theme: theme,
         id: id,
-        ref: this.saveInput });
+        ref: this.storeInputReference });
     }
   }]);
 
@@ -9890,6 +3414,7 @@ Autosuggest.propTypes = {
   renderSectionTitle: _react.PropTypes.func.isRequired,
   getSectionSuggestions: _react.PropTypes.func.isRequired,
   focusInputOnSuggestionClick: _react.PropTypes.bool.isRequired,
+  focusFirstSuggestion: _react.PropTypes.bool.isRequired,
   theme: _react.PropTypes.object.isRequired,
   id: _react.PropTypes.string.isRequired,
   inputRef: _react.PropTypes.func.isRequired,
@@ -9908,8 +3433,8 @@ Autosuggest.propTypes = {
   revealSuggestions: _react.PropTypes.func.isRequired,
   closeSuggestions: _react.PropTypes.func.isRequired
 };
-exports.default = (0, _reactRedux.connect)(mapStateToProps, mapDispatchToProps)(Autosuggest);
-},{"./reducerAndActions":118,"react":256,"react-autowhatever":119,"react-redux":123}],116:[function(require,module,exports){
+exports.default = (0, _reactRedux.connect)(mapStateToProps, _reducerAndActions.actionCreators)(Autosuggest);
+},{"./reducerAndActions":56,"react":200,"react-autowhatever":57,"react-redux":65}],54:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -9923,8 +3448,6 @@ var _react = require('react');
 var _react2 = _interopRequireDefault(_react);
 
 var _redux = require('redux');
-
-var _reactRedux = require('react-redux');
 
 var _reducerAndActions = require('./reducerAndActions');
 
@@ -10004,13 +3527,13 @@ var AutosuggestContainer = function (_Component) {
 
     _this.store = (0, _redux.createStore)(_reducerAndActions2.default, initialState);
 
-    _this.saveInput = _this.saveInput.bind(_this);
+    _this.storeInputReference = _this.storeInputReference.bind(_this);
     return _this;
   }
 
   _createClass(AutosuggestContainer, [{
-    key: 'saveInput',
-    value: function saveInput(input) {
+    key: 'storeInputReference',
+    value: function storeInputReference(input) {
       this.input = input;
     }
   }, {
@@ -10028,28 +3551,28 @@ var AutosuggestContainer = function (_Component) {
       var inputProps = _props.inputProps;
       var onSuggestionSelected = _props.onSuggestionSelected;
       var focusInputOnSuggestionClick = _props.focusInputOnSuggestionClick;
+      var focusFirstSuggestion = _props.focusFirstSuggestion;
       var theme = _props.theme;
       var id = _props.id;
 
 
-      return _react2.default.createElement(
-        _reactRedux.Provider,
-        { store: this.store },
-        _react2.default.createElement(_Autosuggest2.default, { multiSection: multiSection,
-          shouldRenderSuggestions: shouldRenderSuggestions,
-          suggestions: suggestions,
-          onSuggestionsUpdateRequested: onSuggestionsUpdateRequested,
-          getSuggestionValue: getSuggestionValue,
-          renderSuggestion: renderSuggestion,
-          renderSectionTitle: renderSectionTitle,
-          getSectionSuggestions: getSectionSuggestions,
-          inputProps: inputProps,
-          onSuggestionSelected: onSuggestionSelected,
-          focusInputOnSuggestionClick: focusInputOnSuggestionClick,
-          theme: mapToAutowhateverTheme(theme),
-          id: id,
-          inputRef: this.saveInput })
-      );
+      return _react2.default.createElement(_Autosuggest2.default, {
+        multiSection: multiSection,
+        shouldRenderSuggestions: shouldRenderSuggestions,
+        suggestions: suggestions,
+        onSuggestionsUpdateRequested: onSuggestionsUpdateRequested,
+        getSuggestionValue: getSuggestionValue,
+        renderSuggestion: renderSuggestion,
+        renderSectionTitle: renderSectionTitle,
+        getSectionSuggestions: getSectionSuggestions,
+        inputProps: inputProps,
+        onSuggestionSelected: onSuggestionSelected,
+        focusInputOnSuggestionClick: focusInputOnSuggestionClick,
+        focusFirstSuggestion: focusFirstSuggestion,
+        theme: mapToAutowhateverTheme(theme),
+        id: id,
+        inputRef: this.storeInputReference,
+        store: this.store });
     }
   }]);
 
@@ -10078,6 +3601,7 @@ AutosuggestContainer.propTypes = {
   renderSectionTitle: _react.PropTypes.func,
   getSectionSuggestions: _react.PropTypes.func,
   focusInputOnSuggestionClick: _react.PropTypes.bool,
+  focusFirstSuggestion: _react.PropTypes.bool,
   theme: _react.PropTypes.object,
   id: _react.PropTypes.string
 };
@@ -10096,15 +3620,16 @@ AutosuggestContainer.defaultProps = {
   },
 
   focusInputOnSuggestionClick: true,
+  focusFirstSuggestion: false,
   theme: defaultTheme,
   id: '1'
 };
 exports.default = AutosuggestContainer;
-},{"./Autosuggest":115,"./reducerAndActions":118,"react":256,"react-redux":123,"redux":262}],117:[function(require,module,exports){
+},{"./Autosuggest":53,"./reducerAndActions":56,"react":200,"redux":206}],55:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./AutosuggestContainer').default;
-},{"./AutosuggestContainer":116}],118:[function(require,module,exports){
+},{"./AutosuggestContainer":54}],56:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -10113,12 +3638,6 @@ Object.defineProperty(exports, "__esModule", {
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-exports.inputFocused = inputFocused;
-exports.inputBlurred = inputBlurred;
-exports.inputChanged = inputChanged;
-exports.updateFocusedSuggestion = updateFocusedSuggestion;
-exports.revealSuggestions = revealSuggestions;
-exports.closeSuggestions = closeSuggestions;
 exports.default = reducer;
 var INPUT_FOCUSED = 'INPUT_FOCUSED';
 var INPUT_BLURRED = 'INPUT_BLURRED';
@@ -10169,6 +3688,15 @@ function closeSuggestions(lastAction) {
     lastAction: lastAction
   };
 }
+
+var actionCreators = exports.actionCreators = {
+  inputFocused: inputFocused,
+  inputBlurred: inputBlurred,
+  inputChanged: inputChanged,
+  updateFocusedSuggestion: updateFocusedSuggestion,
+  revealSuggestions: revealSuggestions,
+  closeSuggestions: closeSuggestions
+};
 
 function reducer(state, action) {
   switch (action.type) {
@@ -10229,18 +3757,18 @@ function reducer(state, action) {
       return state;
   }
 }
-},{}],119:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 'use strict';
-
-var _slicedToArray = (function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; })();
-
-var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
-
-var _createClass = (function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _react = require('react');
 
@@ -10254,6 +3782,14 @@ var _reactThemeable = require('react-themeable');
 
 var _reactThemeable2 = _interopRequireDefault(_reactThemeable);
 
+var _SectionTitle = require('./SectionTitle');
+
+var _SectionTitle2 = _interopRequireDefault(_SectionTitle);
+
+var _ItemsList = require('./ItemsList');
+
+var _ItemsList2 = _interopRequireDefault(_ItemsList);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -10262,9 +3798,23 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-function noop() {}
+var alwaysTrue = function alwaysTrue() {
+  return true;
+};
+var emptyObject = {};
+var defaultTheme = {
+  container: 'react-autowhatever__container',
+  containerOpen: 'react-autowhatever__container--open',
+  input: 'react-autowhatever__input',
+  itemsContainer: 'react-autowhatever__items-container',
+  item: 'react-autowhatever__item',
+  itemFocused: 'react-autowhatever__item--focused',
+  sectionContainer: 'react-autowhatever__section-container',
+  sectionTitle: 'react-autowhatever__section-title',
+  sectionItemsContainer: 'react-autowhatever__section-items-container'
+};
 
-var Autowhatever = (function (_Component) {
+var Autowhatever = function (_Component) {
   _inherits(Autowhatever, _Component);
 
   function Autowhatever(props) {
@@ -10272,11 +3822,78 @@ var Autowhatever = (function (_Component) {
 
     var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Autowhatever).call(this, props));
 
+    _this.setSectionsItems(props);
+    _this.setSectionIterator(props);
+    _this.setTheme(props);
+
     _this.onKeyDown = _this.onKeyDown.bind(_this);
+    _this.storeInputReference = _this.storeInputReference.bind(_this);
+    _this.storeItemsListReference = _this.storeItemsListReference.bind(_this);
+    _this.getItemId = _this.getItemId.bind(_this);
     return _this;
-  } // Styles. See: https://github.com/markdalgleish/react-themeable
+  }
 
   _createClass(Autowhatever, [{
+    key: 'componentWillReceiveProps',
+    value: function componentWillReceiveProps(nextProps) {
+      if (nextProps.items !== this.props.items) {
+        this.setSectionsItems(nextProps);
+      }
+
+      if (nextProps.items !== this.props.items || nextProps.multiSection !== this.props.multiSection) {
+        this.setSectionIterator(nextProps);
+      }
+
+      if (nextProps.theme !== this.props.theme) {
+        this.setTheme(nextProps);
+      }
+    }
+  }, {
+    key: 'setSectionsItems',
+    value: function setSectionsItems(props) {
+      if (props.multiSection) {
+        this.sectionsItems = props.items.map(function (section) {
+          return props.getSectionItems(section);
+        });
+        this.sectionsLengths = this.sectionsItems.map(function (items) {
+          return items.length;
+        });
+        this.allSectionsAreEmpty = this.sectionsLengths.every(function (itemsCount) {
+          return itemsCount === 0;
+        });
+      }
+    }
+  }, {
+    key: 'setSectionIterator',
+    value: function setSectionIterator(props) {
+      this.sectionIterator = (0, _sectionIterator2.default)({
+        multiSection: props.multiSection,
+        data: props.multiSection ? this.sectionsLengths : props.items.length
+      });
+    }
+  }, {
+    key: 'setTheme',
+    value: function setTheme(props) {
+      this.theme = (0, _reactThemeable2.default)(props.theme);
+    }
+  }, {
+    key: 'storeInputReference',
+    value: function storeInputReference(input) {
+      if (input !== null) {
+        this.input = input;
+      }
+    }
+
+    // Needed only for testing
+
+  }, {
+    key: 'storeItemsListReference',
+    value: function storeItemsListReference(itemsList) {
+      if (itemsList !== null) {
+        this.itemsList = itemsList;
+      }
+    }
+  }, {
     key: 'getItemId',
     value: function getItemId(sectionIndex, itemIndex) {
       if (itemIndex === null) {
@@ -10294,179 +3911,143 @@ var Autowhatever = (function (_Component) {
     value: function getItemsContainerId() {
       var id = this.props.id;
 
-      return 'react-whatever-' + id;
-    }
-  }, {
-    key: 'renderItemsList',
-    value: function renderItemsList(theme, items, sectionIndex) {
-      var _this2 = this;
 
-      var _props = this.props;
-      var renderItem = _props.renderItem;
-      var focusedSectionIndex = _props.focusedSectionIndex;
-      var focusedItemIndex = _props.focusedItemIndex;
-
-      var isItemPropsFunction = typeof this.props.itemProps === 'function';
-
-      return items.map(function (item, itemIndex) {
-        var itemPropsObj = isItemPropsFunction ? _this2.props.itemProps({ sectionIndex: sectionIndex, itemIndex: itemIndex }) : _this2.props.itemProps;
-        var onMouseEnter = itemPropsObj.onMouseEnter;
-        var onMouseLeave = itemPropsObj.onMouseLeave;
-        var onMouseDown = itemPropsObj.onMouseDown;
-        var onClick = itemPropsObj.onClick;
-
-        var onMouseEnterFn = onMouseEnter ? function (event) {
-          return onMouseEnter(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
-        } : noop;
-        var onMouseLeaveFn = onMouseLeave ? function (event) {
-          return onMouseLeave(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
-        } : noop;
-        var onMouseDownFn = onMouseDown ? function (event) {
-          return onMouseDown(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
-        } : noop;
-        var onClickFn = onClick ? function (event) {
-          return onClick(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
-        } : noop;
-        var itemProps = _extends({
-          id: _this2.getItemId(sectionIndex, itemIndex),
-          role: 'option'
-        }, theme(itemIndex, 'item', sectionIndex === focusedSectionIndex && itemIndex === focusedItemIndex && 'itemFocused'), itemPropsObj, {
-          onMouseEnter: onMouseEnterFn,
-          onMouseLeave: onMouseLeaveFn,
-          onMouseDown: onMouseDownFn,
-          onClick: onClickFn
-        });
-
-        return _react2.default.createElement(
-          'li',
-          itemProps,
-          renderItem(item)
-        );
-      });
+      return 'react-autowhatever-' + id;
     }
   }, {
     key: 'renderSections',
-    value: function renderSections(theme) {
-      var _this3 = this;
+    value: function renderSections() {
+      var _this2 = this;
 
-      var _props2 = this.props;
-      var items = _props2.items;
-      var getSectionItems = _props2.getSectionItems;
-
-      var sectionItemsArray = items.map(function (section) {
-        return getSectionItems(section);
-      });
-      var noItemsExist = sectionItemsArray.every(function (sectionItems) {
-        return sectionItems.length === 0;
-      });
-
-      if (noItemsExist) {
+      if (this.allSectionsAreEmpty) {
         return null;
       }
 
-      var _props3 = this.props;
-      var shouldRenderSection = _props3.shouldRenderSection;
-      var renderSectionTitle = _props3.renderSectionTitle;
+      var theme = this.theme;
+      var _props = this.props;
+      var id = _props.id;
+      var items = _props.items;
+      var renderItem = _props.renderItem;
+      var renderItemData = _props.renderItemData;
+      var shouldRenderSection = _props.shouldRenderSection;
+      var renderSectionTitle = _props.renderSectionTitle;
+      var focusedSectionIndex = _props.focusedSectionIndex;
+      var focusedItemIndex = _props.focusedItemIndex;
+      var itemProps = _props.itemProps;
+
 
       return _react2.default.createElement(
         'div',
-        _extends({ id: this.getItemsContainerId(),
-          role: 'listbox'
-        }, theme('itemsContainer', 'itemsContainer')),
+        theme('react-autowhatever-' + id + '-items-container', 'itemsContainer'),
         items.map(function (section, sectionIndex) {
           if (!shouldRenderSection(section)) {
             return null;
           }
 
-          var sectionTitle = renderSectionTitle(section);
+          var keyPrefix = 'react-autowhatever-' + id + '-';
+          var sectionKeyPrefix = keyPrefix + 'section-' + sectionIndex + '-';
 
+          // `key` is provided by theme()
+          /* eslint-disable react/jsx-key */
           return _react2.default.createElement(
             'div',
-            _extends({ key: sectionIndex
-            }, theme(sectionIndex, 'sectionContainer')),
-            sectionTitle && _react2.default.createElement(
-              'div',
-              theme('sectionTitle', 'sectionTitle'),
-              sectionTitle
-            ),
-            _react2.default.createElement(
-              'ul',
-              theme('sectionItemsContainer', 'sectionItemsContainer'),
-              _this3.renderItemsList(theme, sectionItemsArray[sectionIndex], sectionIndex)
-            )
+            theme(sectionKeyPrefix + 'container', 'sectionContainer'),
+            _react2.default.createElement(_SectionTitle2.default, {
+              section: section,
+              renderSectionTitle: renderSectionTitle,
+              theme: theme,
+              sectionKeyPrefix: sectionKeyPrefix }),
+            _react2.default.createElement(_ItemsList2.default, {
+              id: _this2.getItemsContainerId(),
+              items: _this2.sectionsItems[sectionIndex],
+              itemProps: itemProps,
+              renderItem: renderItem,
+              renderItemData: renderItemData,
+              sectionIndex: sectionIndex,
+              focusedItemIndex: focusedSectionIndex === sectionIndex ? focusedItemIndex : null,
+              getItemId: _this2.getItemId,
+              theme: theme,
+              keyPrefix: keyPrefix,
+              ref: _this2.storeItemsListReference })
           );
+          /* eslint-enable react/jsx-key */
         })
       );
     }
   }, {
     key: 'renderItems',
-    value: function renderItems(theme) {
+    value: function renderItems() {
       var items = this.props.items;
+
 
       if (items.length === 0) {
         return null;
       }
 
-      return _react2.default.createElement(
-        'ul',
-        _extends({ id: this.getItemsContainerId(),
-          role: 'listbox'
-        }, theme('itemsContainer', 'itemsContainer')),
-        this.renderItemsList(theme, items, null)
-      );
+      var theme = this.theme;
+      var _props2 = this.props;
+      var id = _props2.id;
+      var renderItem = _props2.renderItem;
+      var renderItemData = _props2.renderItemData;
+      var focusedSectionIndex = _props2.focusedSectionIndex;
+      var focusedItemIndex = _props2.focusedItemIndex;
+      var itemProps = _props2.itemProps;
+
+
+      return _react2.default.createElement(_ItemsList2.default, {
+        id: this.getItemsContainerId(),
+        items: items,
+        itemProps: itemProps,
+        renderItem: renderItem,
+        renderItemData: renderItemData,
+        focusedItemIndex: focusedSectionIndex === null ? focusedItemIndex : null,
+        getItemId: this.getItemId,
+        theme: theme,
+        keyPrefix: 'react-autowhatever-' + id + '-',
+        ref: this.storeItemsListReference });
     }
   }, {
     key: 'onKeyDown',
     value: function onKeyDown(event) {
-      var _props4 = this.props;
-      var inputProps = _props4.inputProps;
-      var focusedSectionIndex = _props4.focusedSectionIndex;
-      var focusedItemIndex = _props4.focusedItemIndex;
-      var onKeyDownFn = inputProps.onKeyDown; // Babel is throwing:
-      //   "onKeyDown" is read-only
-      // on:
-      //   const { onKeyDown } = inputProps;
+      var _props3 = this.props;
+      var inputProps = _props3.inputProps;
+      var focusedSectionIndex = _props3.focusedSectionIndex;
+      var focusedItemIndex = _props3.focusedItemIndex;
+
 
       switch (event.key) {
         case 'ArrowDown':
         case 'ArrowUp':
-          var _props5 = this.props;
-          var multiSection = _props5.multiSection;
-          var items = _props5.items;
-          var getSectionItems = _props5.getSectionItems;
+          {
+            var nextPrev = event.key === 'ArrowDown' ? 'next' : 'prev';
 
-          var sectionIterator = (0, _sectionIterator2.default)({
-            multiSection: multiSection,
-            data: multiSection ? items.map(function (section) {
-              return getSectionItems(section).length;
-            }) : items.length
-          });
-          var nextPrev = event.key === 'ArrowDown' ? 'next' : 'prev';
+            var _sectionIterator$next = this.sectionIterator[nextPrev]([focusedSectionIndex, focusedItemIndex]);
 
-          var _sectionIterator$next = sectionIterator[nextPrev]([focusedSectionIndex, focusedItemIndex]);
+            var _sectionIterator$next2 = _slicedToArray(_sectionIterator$next, 2);
 
-          var _sectionIterator$next2 = _slicedToArray(_sectionIterator$next, 2);
+            var newFocusedSectionIndex = _sectionIterator$next2[0];
+            var newFocusedItemIndex = _sectionIterator$next2[1];
 
-          var newFocusedSectionIndex = _sectionIterator$next2[0];
-          var newFocusedItemIndex = _sectionIterator$next2[1];
 
-          onKeyDownFn(event, { newFocusedSectionIndex: newFocusedSectionIndex, newFocusedItemIndex: newFocusedItemIndex });
-          break;
+            inputProps.onKeyDown(event, { newFocusedSectionIndex: newFocusedSectionIndex, newFocusedItemIndex: newFocusedItemIndex });
+            break;
+          }
 
         default:
-          onKeyDownFn(event, { focusedSectionIndex: focusedSectionIndex, focusedItemIndex: focusedItemIndex });
+          inputProps.onKeyDown(event, { focusedSectionIndex: focusedSectionIndex, focusedItemIndex: focusedItemIndex });
       }
     }
   }, {
     key: 'render',
     value: function render() {
-      var _props6 = this.props;
-      var multiSection = _props6.multiSection;
-      var focusedSectionIndex = _props6.focusedSectionIndex;
-      var focusedItemIndex = _props6.focusedItemIndex;
+      var theme = this.theme;
+      var _props4 = this.props;
+      var id = _props4.id;
+      var multiSection = _props4.multiSection;
+      var focusedSectionIndex = _props4.focusedSectionIndex;
+      var focusedItemIndex = _props4.focusedItemIndex;
 
-      var theme = (0, _reactThemeable2.default)(this.props.theme);
-      var renderedItems = multiSection ? this.renderSections(theme) : this.renderItems(theme);
+      var renderedItems = multiSection ? this.renderSections() : this.renderItems();
       var isOpen = renderedItems !== null;
       var ariaActivedescendant = this.getItemId(focusedSectionIndex, focusedItemIndex);
       var inputProps = _extends({
@@ -10474,18 +4055,18 @@ var Autowhatever = (function (_Component) {
         value: '',
         autoComplete: 'off',
         role: 'combobox',
-        ref: 'input',
         'aria-autocomplete': 'list',
         'aria-owns': this.getItemsContainerId(),
         'aria-expanded': isOpen,
         'aria-activedescendant': ariaActivedescendant
-      }, theme('input', 'input'), this.props.inputProps, {
-        onKeyDown: this.props.inputProps.onKeyDown && this.onKeyDown
+      }, theme('react-autowhatever-' + id + '-input', 'input'), this.props.inputProps, {
+        onKeyDown: this.props.inputProps.onKeyDown && this.onKeyDown,
+        ref: this.storeInputReference
       });
 
       return _react2.default.createElement(
         'div',
-        theme('container', 'container', isOpen && 'containerOpen'),
+        theme('react-autowhatever-' + id + '-container', 'container', isOpen && 'containerOpen'),
         _react2.default.createElement('input', inputProps),
         renderedItems
       );
@@ -10493,13 +4074,14 @@ var Autowhatever = (function (_Component) {
   }]);
 
   return Autowhatever;
-})(_react.Component);
+}(_react.Component);
 
 Autowhatever.propTypes = {
   id: _react.PropTypes.string, // Used in aria-* attributes. If multiple Autowhatever's are rendered on a page, they must have unique ids.
   multiSection: _react.PropTypes.bool, // Indicates whether a multi section layout should be rendered.
   items: _react.PropTypes.array.isRequired, // Array of items or sections to render.
   renderItem: _react.PropTypes.func, // This function renders a single item.
+  renderItemData: _react.PropTypes.object, // Arbitrary data that will be passed to renderItem()
   shouldRenderSection: _react.PropTypes.func, // This function gets a section and returns whether it should be rendered, or not.
   renderSectionTitle: _react.PropTypes.func, // This function gets a section and renders its title.
   getSectionItems: _react.PropTypes.func, // This function gets a section and returns its items, which will be passed into `renderItem` for rendering.
@@ -10508,46 +4090,491 @@ Autowhatever.propTypes = {
   _react.PropTypes.object, _react.PropTypes.func]),
   focusedSectionIndex: _react.PropTypes.number, // Section index of the focused item
   focusedItemIndex: _react.PropTypes.number, // Focused item index (within a section)
-  theme: _react.PropTypes.object };
+  theme: _react.PropTypes.object // Styles. See: https://github.com/markdalgleish/react-themeable
+};
 Autowhatever.defaultProps = {
   id: '1',
   multiSection: false,
-  shouldRenderSection: function shouldRenderSection() {
-    return true;
-  },
+  shouldRenderSection: alwaysTrue,
   renderItem: function renderItem() {
     throw new Error('`renderItem` must be provided');
   },
+  renderItemData: emptyObject,
   renderSectionTitle: function renderSectionTitle() {
     throw new Error('`renderSectionTitle` must be provided');
   },
   getSectionItems: function getSectionItems() {
     throw new Error('`getSectionItems` must be provided');
   },
-  inputProps: {},
-  itemProps: {},
+  inputProps: emptyObject,
+  itemProps: emptyObject,
   focusedSectionIndex: null,
   focusedItemIndex: null,
-  theme: {
-    container: 'react-autowhatever__container',
-    containerOpen: 'react-autowhatever__container--open',
-    input: 'react-autowhatever__input',
-    itemsContainer: 'react-autowhatever__items-container',
-    item: 'react-autowhatever__item',
-    itemFocused: 'react-autowhatever__item--focused',
-    sectionContainer: 'react-autowhatever__section-container',
-    sectionTitle: 'react-autowhatever__section-title',
-    sectionItemsContainer: 'react-autowhatever__section-items-container'
-  }
+  theme: defaultTheme
 };
 exports.default = Autowhatever;
+},{"./ItemsList":59,"./SectionTitle":60,"react":200,"react-themeable":70,"section-iterator":208}],58:[function(require,module,exports){
+'use strict';
 
-},{"react":256,"react-themeable":127,"section-iterator":264}],120:[function(require,module,exports){
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = require('react');
+
+var _react2 = _interopRequireDefault(_react);
+
+var _compareObjects = require('./compareObjects');
+
+var _compareObjects2 = _interopRequireDefault(_compareObjects);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _objectWithoutProperties(obj, keys) { var target = {}; for (var i in obj) { if (keys.indexOf(i) >= 0) continue; if (!Object.prototype.hasOwnProperty.call(obj, i)) continue; target[i] = obj[i]; } return target; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var Item = function (_Component) {
+  _inherits(Item, _Component);
+
+  function Item() {
+    _classCallCheck(this, Item);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Item).call(this));
+
+    _this.storeItemReference = _this.storeItemReference.bind(_this);
+    _this.onMouseEnter = _this.onMouseEnter.bind(_this);
+    _this.onMouseLeave = _this.onMouseLeave.bind(_this);
+    _this.onMouseDown = _this.onMouseDown.bind(_this);
+    _this.onClick = _this.onClick.bind(_this);
+    return _this;
+  }
+
+  _createClass(Item, [{
+    key: 'shouldComponentUpdate',
+    value: function shouldComponentUpdate(nextProps) {
+      return (0, _compareObjects2.default)(nextProps, this.props, ['renderItemData']);
+    }
+  }, {
+    key: 'storeItemReference',
+    value: function storeItemReference(item) {
+      if (item !== null) {
+        this.item = item;
+      }
+    }
+  }, {
+    key: 'onMouseEnter',
+    value: function onMouseEnter(event) {
+      var _props = this.props;
+      var sectionIndex = _props.sectionIndex;
+      var itemIndex = _props.itemIndex;
+
+
+      this.props.onMouseEnter(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
+    }
+  }, {
+    key: 'onMouseLeave',
+    value: function onMouseLeave(event) {
+      var _props2 = this.props;
+      var sectionIndex = _props2.sectionIndex;
+      var itemIndex = _props2.itemIndex;
+
+
+      this.props.onMouseLeave(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
+    }
+  }, {
+    key: 'onMouseDown',
+    value: function onMouseDown(event) {
+      var _props3 = this.props;
+      var sectionIndex = _props3.sectionIndex;
+      var itemIndex = _props3.itemIndex;
+
+
+      this.props.onMouseDown(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
+    }
+  }, {
+    key: 'onClick',
+    value: function onClick(event) {
+      var _props4 = this.props;
+      var sectionIndex = _props4.sectionIndex;
+      var itemIndex = _props4.itemIndex;
+
+
+      this.props.onClick(event, { sectionIndex: sectionIndex, itemIndex: itemIndex });
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var _props5 = this.props;
+      var item = _props5.item;
+      var renderItem = _props5.renderItem;
+      var renderItemData = _props5.renderItemData;
+
+      var restProps = _objectWithoutProperties(_props5, ['item', 'renderItem', 'renderItemData']);
+
+      delete restProps.sectionIndex;
+      delete restProps.itemIndex;
+
+      if (typeof restProps.onMouseEnter === 'function') {
+        restProps.onMouseEnter = this.onMouseEnter;
+      }
+
+      if (typeof restProps.onMouseLeave === 'function') {
+        restProps.onMouseLeave = this.onMouseLeave;
+      }
+
+      if (typeof restProps.onMouseDown === 'function') {
+        restProps.onMouseDown = this.onMouseDown;
+      }
+
+      if (typeof restProps.onClick === 'function') {
+        restProps.onClick = this.onClick;
+      }
+
+      return _react2.default.createElement(
+        'li',
+        _extends({ role: 'option' }, restProps, { ref: this.storeItemReference }),
+        renderItem(item, renderItemData)
+      );
+    }
+  }]);
+
+  return Item;
+}(_react.Component);
+
+Item.propTypes = {
+  sectionIndex: _react.PropTypes.number,
+  itemIndex: _react.PropTypes.number.isRequired,
+  item: _react.PropTypes.any.isRequired,
+  renderItem: _react.PropTypes.func.isRequired,
+  renderItemData: _react.PropTypes.object.isRequired,
+  onMouseEnter: _react.PropTypes.func,
+  onMouseLeave: _react.PropTypes.func,
+  onMouseDown: _react.PropTypes.func,
+  onClick: _react.PropTypes.func
+};
+exports.default = Item;
+},{"./compareObjects":61,"react":200}],59:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = require('react');
+
+var _react2 = _interopRequireDefault(_react);
+
+var _Item = require('./Item');
+
+var _Item2 = _interopRequireDefault(_Item);
+
+var _compareObjects = require('./compareObjects');
+
+var _compareObjects2 = _interopRequireDefault(_compareObjects);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var ItemsList = function (_Component) {
+  _inherits(ItemsList, _Component);
+
+  function ItemsList() {
+    _classCallCheck(this, ItemsList);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(ItemsList).call(this));
+
+    _this.storeItemsContainerReference = _this.storeItemsContainerReference.bind(_this);
+    _this.storeFocusedItemReference = _this.storeFocusedItemReference.bind(_this);
+    return _this;
+  }
+
+  _createClass(ItemsList, [{
+    key: 'componentDidMount',
+    value: function componentDidMount() {
+      this.ensureFocusedItemIsVisible();
+    }
+  }, {
+    key: 'shouldComponentUpdate',
+    value: function shouldComponentUpdate(nextProps) {
+      return (0, _compareObjects2.default)(nextProps, this.props, ['itemProps']);
+    }
+  }, {
+    key: 'componentDidUpdate',
+    value: function componentDidUpdate() {
+      this.ensureFocusedItemIsVisible();
+    }
+  }, {
+    key: 'storeItemsContainerReference',
+    value: function storeItemsContainerReference(itemsContainer) {
+      if (itemsContainer !== null) {
+        this.itemsContainer = itemsContainer;
+      }
+    }
+  }, {
+    key: 'storeFocusedItemReference',
+    value: function storeFocusedItemReference(focusedItem) {
+      if (focusedItem !== null) {
+        this.focusedItem = focusedItem.item;
+      }
+    }
+  }, {
+    key: 'ensureFocusedItemIsVisible',
+    value: function ensureFocusedItemIsVisible() {
+      if (!this.focusedItem) {
+        return;
+      }
+
+      var focusedItem = this.focusedItem;
+      var itemsContainer = this.itemsContainer;
+
+      var itemOffsetRelativeToContainer = focusedItem.offsetParent === itemsContainer ? focusedItem.offsetTop : focusedItem.offsetTop - itemsContainer.offsetTop;
+
+      var scrollTop = itemsContainer.scrollTop; // Top of the visible area
+
+      if (itemOffsetRelativeToContainer < scrollTop) {
+        // Item is off the top of the visible area
+        scrollTop = itemOffsetRelativeToContainer;
+      } else if (itemOffsetRelativeToContainer + focusedItem.offsetHeight > scrollTop + itemsContainer.offsetHeight) {
+        // Item is off the bottom of the visible area
+        scrollTop = itemOffsetRelativeToContainer + focusedItem.offsetHeight - itemsContainer.offsetHeight;
+      }
+
+      if (scrollTop !== itemsContainer.scrollTop) {
+        itemsContainer.scrollTop = scrollTop;
+      }
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var _this2 = this;
+
+      var _props = this.props;
+      var id = _props.id;
+      var items = _props.items;
+      var itemProps = _props.itemProps;
+      var renderItem = _props.renderItem;
+      var renderItemData = _props.renderItemData;
+      var sectionIndex = _props.sectionIndex;
+      var focusedItemIndex = _props.focusedItemIndex;
+      var getItemId = _props.getItemId;
+      var theme = _props.theme;
+      var keyPrefix = _props.keyPrefix;
+
+      var sectionPrefix = sectionIndex === null ? keyPrefix : keyPrefix + 'section-' + sectionIndex + '-';
+      var itemsContainerClass = sectionIndex === null ? 'itemsContainer' : 'sectionItemsContainer';
+      var isItemPropsFunction = typeof itemProps === 'function';
+
+      return _react2.default.createElement(
+        'ul',
+        _extends({
+          id: id,
+          ref: this.storeItemsContainerReference,
+          role: 'listbox'
+        }, theme(sectionPrefix + 'items-container', itemsContainerClass)),
+        items.map(function (item, itemIndex) {
+          var isFocused = itemIndex === focusedItemIndex;
+          var itemKey = sectionPrefix + 'item-' + itemIndex;
+          var itemPropsObj = isItemPropsFunction ? itemProps({ sectionIndex: sectionIndex, itemIndex: itemIndex }) : itemProps;
+          var allItemProps = _extends({
+            id: getItemId(sectionIndex, itemIndex)
+          }, theme(itemKey, 'item', isFocused && 'itemFocused'), itemPropsObj);
+
+          if (isFocused) {
+            allItemProps.ref = _this2.storeFocusedItemReference;
+          }
+
+          // `key` is provided by theme()
+          /* eslint-disable react/jsx-key */
+          return _react2.default.createElement(_Item2.default, _extends({}, allItemProps, {
+            sectionIndex: sectionIndex,
+            itemIndex: itemIndex,
+            item: item,
+            renderItem: renderItem,
+            renderItemData: renderItemData }));
+          /* eslint-enable react/jsx-key */
+        })
+      );
+    }
+  }]);
+
+  return ItemsList;
+}(_react.Component);
+
+ItemsList.propTypes = {
+  id: _react.PropTypes.string.isRequired,
+  items: _react.PropTypes.array.isRequired,
+  itemProps: _react.PropTypes.oneOfType([_react.PropTypes.object, _react.PropTypes.func]),
+  renderItem: _react.PropTypes.func.isRequired,
+  renderItemData: _react.PropTypes.object.isRequired,
+  sectionIndex: _react.PropTypes.number,
+  focusedItemIndex: _react.PropTypes.number,
+  getItemId: _react.PropTypes.func.isRequired,
+  theme: _react.PropTypes.func.isRequired,
+  keyPrefix: _react.PropTypes.string.isRequired
+};
+ItemsList.defaultProps = {
+  sectionIndex: null
+};
+exports.default = ItemsList;
+},{"./Item":58,"./compareObjects":61,"react":200}],60:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _react = require('react');
+
+var _react2 = _interopRequireDefault(_react);
+
+var _compareObjects = require('./compareObjects');
+
+var _compareObjects2 = _interopRequireDefault(_compareObjects);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var SectionTitle = function (_Component) {
+  _inherits(SectionTitle, _Component);
+
+  function SectionTitle() {
+    _classCallCheck(this, SectionTitle);
+
+    return _possibleConstructorReturn(this, Object.getPrototypeOf(SectionTitle).apply(this, arguments));
+  }
+
+  _createClass(SectionTitle, [{
+    key: 'shouldComponentUpdate',
+    value: function shouldComponentUpdate(nextProps) {
+      return (0, _compareObjects2.default)(nextProps, this.props);
+    }
+  }, {
+    key: 'render',
+    value: function render() {
+      var _props = this.props;
+      var section = _props.section;
+      var renderSectionTitle = _props.renderSectionTitle;
+      var theme = _props.theme;
+      var sectionKeyPrefix = _props.sectionKeyPrefix;
+
+      var sectionTitle = renderSectionTitle(section);
+
+      if (!sectionTitle) {
+        return null;
+      }
+
+      return _react2.default.createElement(
+        'div',
+        theme(sectionKeyPrefix + 'title', 'sectionTitle'),
+        sectionTitle
+      );
+    }
+  }]);
+
+  return SectionTitle;
+}(_react.Component);
+
+SectionTitle.propTypes = {
+  section: _react.PropTypes.any.isRequired,
+  renderSectionTitle: _react.PropTypes.func.isRequired,
+  theme: _react.PropTypes.func.isRequired,
+  sectionKeyPrefix: _react.PropTypes.string.isRequired
+};
+exports.default = SectionTitle;
+},{"./compareObjects":61,"react":200}],61:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol ? "symbol" : typeof obj; };
+
+exports.default = compareObjects;
+function compareObjects(objA, objB) {
+  var keys = arguments.length <= 2 || arguments[2] === undefined ? [] : arguments[2];
+
+  if (objA === objB) {
+    return false;
+  }
+
+  var aKeys = Object.keys(objA);
+  var bKeys = Object.keys(objB);
+
+  if (aKeys.length !== bKeys.length) {
+    return true;
+  }
+
+  var keysMap = {};
+  var i = void 0,
+      len = void 0;
+
+  for (i = 0, len = keys.length; i < len; i++) {
+    keysMap[keys[i]] = true;
+  }
+
+  for (i = 0, len = aKeys.length; i < len; i++) {
+    var key = aKeys[i];
+    var aValue = objA[key];
+    var bValue = objB[key];
+
+    if (aValue === bValue) {
+      continue;
+    }
+
+    if (!keysMap[key] || aValue === null || bValue === null || (typeof aValue === 'undefined' ? 'undefined' : _typeof(aValue)) !== 'object' || (typeof bValue === 'undefined' ? 'undefined' : _typeof(bValue)) !== 'object') {
+      return true;
+    }
+
+    var aValueKeys = Object.keys(aValue);
+    var bValueKeys = Object.keys(bValue);
+
+    if (aValueKeys.length !== bValueKeys.length) {
+      return true;
+    }
+
+    for (var n = 0, length = aValueKeys.length; n < length; n++) {
+      var aValueKey = aValueKeys[n];
+
+      if (aValue[aValueKey] !== bValue[aValueKey]) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+},{}],62:[function(require,module,exports){
 'use strict';
 
 module.exports = require('react/lib/ReactDOM');
 
-},{"react/lib/ReactDOM":162}],121:[function(require,module,exports){
+},{"react/lib/ReactDOM":106}],63:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -10556,9 +4583,17 @@ exports["default"] = undefined;
 
 var _react = require('react');
 
+var _propTypes = require('prop-types');
+
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
 var _storeShape = require('../utils/storeShape');
 
 var _storeShape2 = _interopRequireDefault(_storeShape);
+
+var _warning = require('../utils/warning');
+
+var _warning2 = _interopRequireDefault(_warning);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
 
@@ -10575,11 +4610,7 @@ function warnAboutReceivingStore() {
   }
   didWarnAboutReceivingStore = true;
 
-  /* eslint-disable no-console */
-  if (typeof console !== 'undefined' && typeof console.error === 'function') {
-    console.error('<Provider> does not support changing `store` on the fly. ' + 'It is most likely that you see this error because you updated to ' + 'Redux 2.x and React Redux 2.x which no longer hot reload reducers ' + 'automatically. See https://github.com/rackt/react-redux/releases/' + 'tag/v2.0.0 for the migration instructions.');
-  }
-  /* eslint-disable no-console */
+  (0, _warning2["default"])('<Provider> does not support changing `store` on the fly. ' + 'It is most likely that you see this error because you updated to ' + 'Redux 2.x and React Redux 2.x which no longer hot reload reducers ' + 'automatically. See https://github.com/reactjs/react-redux/releases/' + 'tag/v2.0.0 for the migration instructions.');
 }
 
 var Provider = function (_Component) {
@@ -10599,9 +4630,7 @@ var Provider = function (_Component) {
   }
 
   Provider.prototype.render = function render() {
-    var children = this.props.children;
-
-    return _react.Children.only(children);
+    return _react.Children.only(this.props.children);
   };
 
   return Provider;
@@ -10609,10 +4638,12 @@ var Provider = function (_Component) {
 
 exports["default"] = Provider;
 
+
 if (process.env.NODE_ENV !== 'production') {
   Provider.prototype.componentWillReceiveProps = function (nextProps) {
     var store = this.store;
     var nextStore = nextProps.store;
+
 
     if (store !== nextStore) {
       warnAboutReceivingStore();
@@ -10622,19 +4653,20 @@ if (process.env.NODE_ENV !== 'production') {
 
 Provider.propTypes = {
   store: _storeShape2["default"].isRequired,
-  children: _react.PropTypes.element.isRequired
+  children: _propTypes2["default"].element.isRequired
 };
 Provider.childContextTypes = {
   store: _storeShape2["default"].isRequired
 };
 }).call(this,require('_process'))
-},{"../utils/storeShape":125,"_process":114,"react":256}],122:[function(require,module,exports){
+},{"../utils/storeShape":67,"../utils/warning":68,"_process":43,"prop-types":47,"react":200}],64:[function(require,module,exports){
 (function (process){
 'use strict';
 
+exports.__esModule = true;
+
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-exports.__esModule = true;
 exports["default"] = connect;
 
 var _react = require('react');
@@ -10650,6 +4682,10 @@ var _shallowEqual2 = _interopRequireDefault(_shallowEqual);
 var _wrapActionCreators = require('../utils/wrapActionCreators');
 
 var _wrapActionCreators2 = _interopRequireDefault(_wrapActionCreators);
+
+var _warning = require('../utils/warning');
+
+var _warning2 = _interopRequireDefault(_warning);
 
 var _isPlainObject = require('lodash/isPlainObject');
 
@@ -10685,39 +4721,62 @@ function getDisplayName(WrappedComponent) {
   return WrappedComponent.displayName || WrappedComponent.name || 'Component';
 }
 
-function checkStateShape(stateProps, dispatch) {
-  (0, _invariant2["default"])((0, _isPlainObject2["default"])(stateProps), '`%sToProps` must return an object. Instead received %s.', dispatch ? 'mapDispatch' : 'mapState', stateProps);
-  return stateProps;
+var errorObject = { value: null };
+function tryCatch(fn, ctx) {
+  try {
+    return fn.apply(ctx);
+  } catch (e) {
+    errorObject.value = e;
+    return errorObject;
+  }
 }
 
 // Helps track hot reloading.
 var nextVersion = 0;
 
 function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
-  var options = arguments.length <= 3 || arguments[3] === undefined ? {} : arguments[3];
+  var options = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
 
   var shouldSubscribe = Boolean(mapStateToProps);
   var mapState = mapStateToProps || defaultMapStateToProps;
-  var mapDispatch = (0, _isPlainObject2["default"])(mapDispatchToProps) ? (0, _wrapActionCreators2["default"])(mapDispatchToProps) : mapDispatchToProps || defaultMapDispatchToProps;
 
-  var finalMergeProps = mergeProps || defaultMergeProps;
-  var checkMergedEquals = finalMergeProps !== defaultMergeProps;
-  var _options$pure = options.pure;
-  var pure = _options$pure === undefined ? true : _options$pure;
-  var _options$withRef = options.withRef;
-  var withRef = _options$withRef === undefined ? false : _options$withRef;
-
-  // Helps track hot reloading.
-
-  var version = nextVersion++;
-
-  function computeMergedProps(stateProps, dispatchProps, parentProps) {
-    var mergedProps = finalMergeProps(stateProps, dispatchProps, parentProps);
-    (0, _invariant2["default"])((0, _isPlainObject2["default"])(mergedProps), '`mergeProps` must return an object. Instead received %s.', mergedProps);
-    return mergedProps;
+  var mapDispatch = void 0;
+  if (typeof mapDispatchToProps === 'function') {
+    mapDispatch = mapDispatchToProps;
+  } else if (!mapDispatchToProps) {
+    mapDispatch = defaultMapDispatchToProps;
+  } else {
+    mapDispatch = (0, _wrapActionCreators2["default"])(mapDispatchToProps);
   }
 
+  var finalMergeProps = mergeProps || defaultMergeProps;
+  var _options$pure = options.pure,
+      pure = _options$pure === undefined ? true : _options$pure,
+      _options$withRef = options.withRef,
+      withRef = _options$withRef === undefined ? false : _options$withRef;
+
+  var checkMergedEquals = pure && finalMergeProps !== defaultMergeProps;
+
+  // Helps track hot reloading.
+  var version = nextVersion++;
+
   return function wrapWithConnect(WrappedComponent) {
+    var connectDisplayName = 'Connect(' + getDisplayName(WrappedComponent) + ')';
+
+    function checkStateShape(props, methodName) {
+      if (!(0, _isPlainObject2["default"])(props)) {
+        (0, _warning2["default"])(methodName + '() in ' + connectDisplayName + ' must return a plain object. ' + ('Instead received ' + props + '.'));
+      }
+    }
+
+    function computeMergedProps(stateProps, dispatchProps, parentProps) {
+      var mergedProps = finalMergeProps(stateProps, dispatchProps, parentProps);
+      if (process.env.NODE_ENV !== 'production') {
+        checkStateShape(mergedProps, 'mergeProps');
+      }
+      return mergedProps;
+    }
+
     var Connect = function (_Component) {
       _inherits(Connect, _Component);
 
@@ -10733,7 +4792,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
         _this.version = version;
         _this.store = props.store || context.store;
 
-        (0, _invariant2["default"])(_this.store, 'Could not find "store" in either the context or ' + ('props of "' + _this.constructor.displayName + '". ') + 'Either wrap the root component in a <Provider>, ' + ('or explicitly pass "store" as a prop to "' + _this.constructor.displayName + '".'));
+        (0, _invariant2["default"])(_this.store, 'Could not find "store" in either the context or ' + ('props of "' + connectDisplayName + '". ') + 'Either wrap the root component in a <Provider>, ' + ('or explicitly pass "store" as a prop to "' + connectDisplayName + '".'));
 
         var storeState = _this.store.getState();
         _this.state = { storeState: storeState };
@@ -10749,7 +4808,10 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
         var state = store.getState();
         var stateProps = this.doStatePropsDependOnOwnProps ? this.finalMapStateToProps(state, props) : this.finalMapStateToProps(state);
 
-        return checkStateShape(stateProps);
+        if (process.env.NODE_ENV !== 'production') {
+          checkStateShape(stateProps, 'mapStateToProps');
+        }
+        return stateProps;
       };
 
       Connect.prototype.configureFinalMapState = function configureFinalMapState(store, props) {
@@ -10759,7 +4821,14 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
         this.finalMapStateToProps = isFactory ? mappedState : mapState;
         this.doStatePropsDependOnOwnProps = this.finalMapStateToProps.length !== 1;
 
-        return isFactory ? this.computeStateProps(store, props) : checkStateShape(mappedState);
+        if (isFactory) {
+          return this.computeStateProps(store, props);
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          checkStateShape(mappedState, 'mapStateToProps');
+        }
+        return mappedState;
       };
 
       Connect.prototype.computeDispatchProps = function computeDispatchProps(store, props) {
@@ -10771,7 +4840,10 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
 
         var dispatchProps = this.doDispatchPropsDependOnOwnProps ? this.finalMapDispatchToProps(dispatch, props) : this.finalMapDispatchToProps(dispatch);
 
-        return checkStateShape(dispatchProps, true);
+        if (process.env.NODE_ENV !== 'production') {
+          checkStateShape(dispatchProps, 'mapDispatchToProps');
+        }
+        return dispatchProps;
       };
 
       Connect.prototype.configureFinalMapDispatch = function configureFinalMapDispatch(store, props) {
@@ -10781,7 +4853,14 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
         this.finalMapDispatchToProps = isFactory ? mappedDispatch : mapDispatch;
         this.doDispatchPropsDependOnOwnProps = this.finalMapDispatchToProps.length !== 1;
 
-        return isFactory ? this.computeDispatchProps(store, props) : checkStateShape(mappedDispatch, true);
+        if (isFactory) {
+          return this.computeDispatchProps(store, props);
+        }
+
+        if (process.env.NODE_ENV !== 'production') {
+          checkStateShape(mappedDispatch, 'mapDispatchToProps');
+        }
+        return mappedDispatch;
       };
 
       Connect.prototype.updateStatePropsIfNeeded = function updateStatePropsIfNeeded() {
@@ -10853,6 +4932,8 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
         this.mergedProps = null;
         this.haveOwnPropsChanged = true;
         this.hasStoreStateChanged = true;
+        this.haveStatePropsBeenPrecalculated = false;
+        this.statePropsPrecalculationError = null;
         this.renderedElement = null;
         this.finalMapDispatchToProps = null;
         this.finalMapStateToProps = null;
@@ -10863,13 +4944,25 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
           return;
         }
 
-        var prevStoreState = this.state.storeState;
         var storeState = this.store.getState();
-
-        if (!pure || prevStoreState !== storeState) {
-          this.hasStoreStateChanged = true;
-          this.setState({ storeState: storeState });
+        var prevStoreState = this.state.storeState;
+        if (pure && prevStoreState === storeState) {
+          return;
         }
+
+        if (pure && !this.doStatePropsDependOnOwnProps) {
+          var haveStatePropsChanged = tryCatch(this.updateStatePropsIfNeeded, this);
+          if (!haveStatePropsChanged) {
+            return;
+          }
+          if (haveStatePropsChanged === errorObject) {
+            this.statePropsPrecalculationError = errorObject.value;
+          }
+          this.haveStatePropsBeenPrecalculated = true;
+        }
+
+        this.hasStoreStateChanged = true;
+        this.setState({ storeState: storeState });
       };
 
       Connect.prototype.getWrappedInstance = function getWrappedInstance() {
@@ -10879,12 +4972,21 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
       };
 
       Connect.prototype.render = function render() {
-        var haveOwnPropsChanged = this.haveOwnPropsChanged;
-        var hasStoreStateChanged = this.hasStoreStateChanged;
-        var renderedElement = this.renderedElement;
+        var haveOwnPropsChanged = this.haveOwnPropsChanged,
+            hasStoreStateChanged = this.hasStoreStateChanged,
+            haveStatePropsBeenPrecalculated = this.haveStatePropsBeenPrecalculated,
+            statePropsPrecalculationError = this.statePropsPrecalculationError,
+            renderedElement = this.renderedElement;
+
 
         this.haveOwnPropsChanged = false;
         this.hasStoreStateChanged = false;
+        this.haveStatePropsBeenPrecalculated = false;
+        this.statePropsPrecalculationError = null;
+
+        if (statePropsPrecalculationError) {
+          throw statePropsPrecalculationError;
+        }
 
         var shouldUpdateStateProps = true;
         var shouldUpdateDispatchProps = true;
@@ -10895,7 +4997,9 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
 
         var haveStatePropsChanged = false;
         var haveDispatchPropsChanged = false;
-        if (shouldUpdateStateProps) {
+        if (haveStatePropsBeenPrecalculated) {
+          haveStatePropsChanged = true;
+        } else if (shouldUpdateStateProps) {
           haveStatePropsChanged = this.updateStatePropsIfNeeded();
         }
         if (shouldUpdateDispatchProps) {
@@ -10927,7 +5031,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
       return Connect;
     }(_react.Component);
 
-    Connect.displayName = 'Connect(' + getDisplayName(WrappedComponent) + ')';
+    Connect.displayName = connectDisplayName;
     Connect.WrappedComponent = WrappedComponent;
     Connect.contextTypes = {
       store: _storeShape2["default"]
@@ -10953,7 +5057,7 @@ function connect(mapStateToProps, mapDispatchToProps, mergeProps) {
   };
 }
 }).call(this,require('_process'))
-},{"../utils/shallowEqual":124,"../utils/storeShape":125,"../utils/wrapActionCreators":126,"_process":114,"hoist-non-react-statics":29,"invariant":109,"lodash/isPlainObject":112,"react":256}],123:[function(require,module,exports){
+},{"../utils/shallowEqual":66,"../utils/storeShape":67,"../utils/warning":68,"../utils/wrapActionCreators":69,"_process":43,"hoist-non-react-statics":30,"invariant":32,"lodash/isPlainObject":42,"react":200}],65:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -10971,7 +5075,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "d
 
 exports.Provider = _Provider2["default"];
 exports.connect = _connect2["default"];
-},{"./components/Provider":121,"./components/connect":122}],124:[function(require,module,exports){
+},{"./components/Provider":63,"./components/connect":64}],66:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
@@ -10998,19 +5102,49 @@ function shallowEqual(objA, objB) {
 
   return true;
 }
-},{}],125:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
 
-var _react = require('react');
+var _propTypes = require('prop-types');
 
-exports["default"] = _react.PropTypes.shape({
-  subscribe: _react.PropTypes.func.isRequired,
-  dispatch: _react.PropTypes.func.isRequired,
-  getState: _react.PropTypes.func.isRequired
+var _propTypes2 = _interopRequireDefault(_propTypes);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+
+exports["default"] = _propTypes2["default"].shape({
+  subscribe: _propTypes2["default"].func.isRequired,
+  dispatch: _propTypes2["default"].func.isRequired,
+  getState: _propTypes2["default"].func.isRequired
 });
-},{"react":256}],126:[function(require,module,exports){
+},{"prop-types":47}],68:[function(require,module,exports){
+'use strict';
+
+exports.__esModule = true;
+exports["default"] = warning;
+/**
+ * Prints a warning in the console if it exists.
+ *
+ * @param {String} message The warning message.
+ * @returns {void}
+ */
+function warning(message) {
+  /* eslint-disable no-console */
+  if (typeof console !== 'undefined' && typeof console.error === 'function') {
+    console.error(message);
+  }
+  /* eslint-enable no-console */
+  try {
+    // This error was thrown as a convenience so that if you enable
+    // "break on all exceptions" in your console,
+    // it would pause the execution at this line.
+    throw new Error(message);
+    /* eslint-disable no-empty */
+  } catch (e) {}
+  /* eslint-enable no-empty */
+}
+},{}],69:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
@@ -11023,12 +5157,14 @@ function wrapActionCreators(actionCreators) {
     return (0, _redux.bindActionCreators)(actionCreators, dispatch);
   };
 }
-},{"redux":262}],127:[function(require,module,exports){
+},{"redux":206}],70:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, '__esModule', {
   value: true
 });
+
+var _slicedToArray = (function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i['return']) _i['return'](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError('Invalid attempt to destructure non-iterable instance'); } }; })();
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
@@ -11042,7 +5178,14 @@ var truthy = function truthy(x) {
   return x;
 };
 
-exports['default'] = function (theme) {
+exports['default'] = function (input) {
+  var _ref = Array.isArray(input) && input.length === 2 ? input : [input, null];
+
+  var _ref2 = _slicedToArray(_ref, 2);
+
+  var theme = _ref2[0];
+  var classNameDecorator = _ref2[1];
+
   return function (key) {
     for (var _len = arguments.length, names = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
       names[_key - 1] = arguments[_key];
@@ -11052,12 +5195,53 @@ exports['default'] = function (theme) {
       return theme[name];
     }).filter(truthy);
 
-    return typeof styles[0] === 'string' ? { key: key, className: styles.join(' ') } : { key: key, style: _objectAssign2['default'].apply(undefined, [{}].concat(_toConsumableArray(styles))) };
+    return typeof styles[0] === 'string' || typeof classNameDecorator === 'function' ? { key: key, className: classNameDecorator ? classNameDecorator.apply(undefined, _toConsumableArray(styles)) : styles.join(' ') } : { key: key, style: _objectAssign2['default'].apply(undefined, [{}].concat(_toConsumableArray(styles))) };
   };
 };
 
 module.exports = exports['default'];
-},{"object-assign":113}],128:[function(require,module,exports){
+},{"object-assign":71}],71:[function(require,module,exports){
+'use strict';
+var propIsEnumerable = Object.prototype.propertyIsEnumerable;
+
+function ToObject(val) {
+	if (val == null) {
+		throw new TypeError('Object.assign cannot be called with null or undefined');
+	}
+
+	return Object(val);
+}
+
+function ownEnumerableKeys(obj) {
+	var keys = Object.getOwnPropertyNames(obj);
+
+	if (Object.getOwnPropertySymbols) {
+		keys = keys.concat(Object.getOwnPropertySymbols(obj));
+	}
+
+	return keys.filter(function (key) {
+		return propIsEnumerable.call(obj, key);
+	});
+}
+
+module.exports = Object.assign || function (target, source) {
+	var from;
+	var keys;
+	var to = ToObject(target);
+
+	for (var s = 1; s < arguments.length; s++) {
+		from = arguments[s];
+		keys = ownEnumerableKeys(Object(from));
+
+		for (var i = 0; i < keys.length; i++) {
+			to[keys[i]] = from[keys[i]];
+		}
+	}
+
+	return to;
+};
+
+},{}],72:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -11094,7 +5278,7 @@ var AutoFocusUtils = {
 };
 
 module.exports = AutoFocusUtils;
-},{"./ReactMount":192,"./findDOMNode":235,"fbjs/lib/focusNode":11}],129:[function(require,module,exports){
+},{"./ReactMount":136,"./findDOMNode":179,"fbjs/lib/focusNode":11}],73:[function(require,module,exports){
 /**
  * Copyright 2013-2015 Facebook, Inc.
  * All rights reserved.
@@ -11500,7 +5684,7 @@ var BeforeInputEventPlugin = {
 };
 
 module.exports = BeforeInputEventPlugin;
-},{"./EventConstants":141,"./EventPropagators":145,"./FallbackCompositionState":146,"./SyntheticCompositionEvent":217,"./SyntheticInputEvent":221,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/keyOf":21}],130:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPropagators":89,"./FallbackCompositionState":90,"./SyntheticCompositionEvent":161,"./SyntheticInputEvent":165,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/keyOf":21}],74:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -11640,7 +5824,7 @@ var CSSProperty = {
 };
 
 module.exports = CSSProperty;
-},{}],131:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -11818,7 +6002,7 @@ ReactPerf.measureMethods(CSSPropertyOperations, 'CSSPropertyOperations', {
 
 module.exports = CSSPropertyOperations;
 }).call(this,require('_process'))
-},{"./CSSProperty":130,"./ReactPerf":198,"./dangerousStyleValue":232,"_process":114,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/camelizeStyleName":5,"fbjs/lib/hyphenateStyleName":16,"fbjs/lib/memoizeStringOnly":23,"fbjs/lib/warning":28}],132:[function(require,module,exports){
+},{"./CSSProperty":74,"./ReactPerf":142,"./dangerousStyleValue":176,"_process":43,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/camelizeStyleName":5,"fbjs/lib/hyphenateStyleName":16,"fbjs/lib/memoizeStringOnly":23,"fbjs/lib/warning":28}],76:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -11914,7 +6098,7 @@ PooledClass.addPoolingTo(CallbackQueue);
 
 module.exports = CallbackQueue;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./PooledClass":150,"_process":114,"fbjs/lib/invariant":17}],133:[function(require,module,exports){
+},{"./Object.assign":93,"./PooledClass":94,"_process":43,"fbjs/lib/invariant":17}],77:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -12236,7 +6420,7 @@ var ChangeEventPlugin = {
 };
 
 module.exports = ChangeEventPlugin;
-},{"./EventConstants":141,"./EventPluginHub":142,"./EventPropagators":145,"./ReactUpdates":210,"./SyntheticEvent":219,"./getEventTarget":241,"./isEventSupported":246,"./isTextInputElement":247,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/keyOf":21}],134:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPluginHub":86,"./EventPropagators":89,"./ReactUpdates":154,"./SyntheticEvent":163,"./getEventTarget":185,"./isEventSupported":190,"./isTextInputElement":191,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/keyOf":21}],78:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -12260,7 +6444,7 @@ var ClientReactRootIndex = {
 };
 
 module.exports = ClientReactRootIndex;
-},{}],135:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -12392,7 +6576,7 @@ ReactPerf.measureMethods(DOMChildrenOperations, 'DOMChildrenOperations', {
 
 module.exports = DOMChildrenOperations;
 }).call(this,require('_process'))
-},{"./Danger":138,"./ReactMultiChildUpdateTypes":194,"./ReactPerf":198,"./setInnerHTML":251,"./setTextContent":252,"_process":114,"fbjs/lib/invariant":17}],136:[function(require,module,exports){
+},{"./Danger":82,"./ReactMultiChildUpdateTypes":138,"./ReactPerf":142,"./setInnerHTML":195,"./setTextContent":196,"_process":43,"fbjs/lib/invariant":17}],80:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -12629,7 +6813,7 @@ var DOMProperty = {
 
 module.exports = DOMProperty;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],137:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],81:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -12857,7 +7041,7 @@ ReactPerf.measureMethods(DOMPropertyOperations, 'DOMPropertyOperations', {
 
 module.exports = DOMPropertyOperations;
 }).call(this,require('_process'))
-},{"./DOMProperty":136,"./ReactPerf":198,"./quoteAttributeValueForBrowser":249,"_process":114,"fbjs/lib/warning":28}],138:[function(require,module,exports){
+},{"./DOMProperty":80,"./ReactPerf":142,"./quoteAttributeValueForBrowser":193,"_process":43,"fbjs/lib/warning":28}],82:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -13005,7 +7189,7 @@ var Danger = {
 
 module.exports = Danger;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/createNodesFromMarkup":8,"fbjs/lib/emptyFunction":9,"fbjs/lib/getMarkupWrap":13,"fbjs/lib/invariant":17}],139:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/createNodesFromMarkup":8,"fbjs/lib/emptyFunction":9,"fbjs/lib/getMarkupWrap":13,"fbjs/lib/invariant":17}],83:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -13033,7 +7217,7 @@ var keyOf = require('fbjs/lib/keyOf');
 var DefaultEventPluginOrder = [keyOf({ ResponderEventPlugin: null }), keyOf({ SimpleEventPlugin: null }), keyOf({ TapEventPlugin: null }), keyOf({ EnterLeaveEventPlugin: null }), keyOf({ ChangeEventPlugin: null }), keyOf({ SelectEventPlugin: null }), keyOf({ BeforeInputEventPlugin: null })];
 
 module.exports = DefaultEventPluginOrder;
-},{"fbjs/lib/keyOf":21}],140:[function(require,module,exports){
+},{"fbjs/lib/keyOf":21}],84:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -13158,7 +7342,7 @@ var EnterLeaveEventPlugin = {
 };
 
 module.exports = EnterLeaveEventPlugin;
-},{"./EventConstants":141,"./EventPropagators":145,"./ReactMount":192,"./SyntheticMouseEvent":223,"fbjs/lib/keyOf":21}],141:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPropagators":89,"./ReactMount":136,"./SyntheticMouseEvent":167,"fbjs/lib/keyOf":21}],85:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -13251,7 +7435,7 @@ var EventConstants = {
 };
 
 module.exports = EventConstants;
-},{"fbjs/lib/keyMirror":20}],142:[function(require,module,exports){
+},{"fbjs/lib/keyMirror":20}],86:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -13533,7 +7717,7 @@ var EventPluginHub = {
 
 module.exports = EventPluginHub;
 }).call(this,require('_process'))
-},{"./EventPluginRegistry":143,"./EventPluginUtils":144,"./ReactErrorUtils":183,"./accumulateInto":229,"./forEachAccumulated":237,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],143:[function(require,module,exports){
+},{"./EventPluginRegistry":87,"./EventPluginUtils":88,"./ReactErrorUtils":127,"./accumulateInto":173,"./forEachAccumulated":181,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],87:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -13756,7 +7940,7 @@ var EventPluginRegistry = {
 
 module.exports = EventPluginRegistry;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],144:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],88:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -13961,7 +8145,7 @@ var EventPluginUtils = {
 
 module.exports = EventPluginUtils;
 }).call(this,require('_process'))
-},{"./EventConstants":141,"./ReactErrorUtils":183,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],145:[function(require,module,exports){
+},{"./EventConstants":85,"./ReactErrorUtils":127,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],89:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -14099,7 +8283,7 @@ var EventPropagators = {
 
 module.exports = EventPropagators;
 }).call(this,require('_process'))
-},{"./EventConstants":141,"./EventPluginHub":142,"./accumulateInto":229,"./forEachAccumulated":237,"_process":114,"fbjs/lib/warning":28}],146:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPluginHub":86,"./accumulateInto":173,"./forEachAccumulated":181,"_process":43,"fbjs/lib/warning":28}],90:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -14195,7 +8379,7 @@ assign(FallbackCompositionState.prototype, {
 PooledClass.addPoolingTo(FallbackCompositionState);
 
 module.exports = FallbackCompositionState;
-},{"./Object.assign":149,"./PooledClass":150,"./getTextContentAccessor":244}],147:[function(require,module,exports){
+},{"./Object.assign":93,"./PooledClass":94,"./getTextContentAccessor":188}],91:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -14426,7 +8610,7 @@ var HTMLDOMPropertyConfig = {
 };
 
 module.exports = HTMLDOMPropertyConfig;
-},{"./DOMProperty":136,"fbjs/lib/ExecutionEnvironment":3}],148:[function(require,module,exports){
+},{"./DOMProperty":80,"fbjs/lib/ExecutionEnvironment":3}],92:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -14506,7 +8690,7 @@ var LinkedValueUtils = {
   checkPropTypes: function (tagName, props, owner) {
     for (var propName in propTypes) {
       if (propTypes.hasOwnProperty(propName)) {
-        var error = propTypes[propName](props, propName, tagName, ReactPropTypeLocations.prop);
+        var error = propTypes[propName](props, propName, tagName, ReactPropTypeLocations.prop, null, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
       }
       if (error instanceof Error && !(error.message in loggedTypeFailures)) {
         // Only monitor this failure once because there tends to be a lot of the
@@ -14563,7 +8747,7 @@ var LinkedValueUtils = {
 
 module.exports = LinkedValueUtils;
 }).call(this,require('_process'))
-},{"./ReactPropTypeLocations":200,"./ReactPropTypes":201,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],149:[function(require,module,exports){
+},{"./ReactPropTypeLocations":144,"./ReactPropTypes":145,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],93:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -14611,7 +8795,7 @@ function assign(target, sources) {
 }
 
 module.exports = assign;
-},{}],150:[function(require,module,exports){
+},{}],94:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -14733,7 +8917,7 @@ var PooledClass = {
 
 module.exports = PooledClass;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],151:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],95:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -14774,7 +8958,7 @@ React.__SECRET_DOM_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ReactDOM;
 React.__SECRET_DOM_SERVER_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = ReactDOMServer;
 
 module.exports = React;
-},{"./Object.assign":149,"./ReactDOM":162,"./ReactDOMServer":172,"./ReactIsomorphic":190,"./deprecated":233}],152:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactDOM":106,"./ReactDOMServer":116,"./ReactIsomorphic":134,"./deprecated":177}],96:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -14813,7 +8997,7 @@ var ReactBrowserComponentMixin = {
 
 module.exports = ReactBrowserComponentMixin;
 }).call(this,require('_process'))
-},{"./ReactInstanceMap":189,"./findDOMNode":235,"_process":114,"fbjs/lib/warning":28}],153:[function(require,module,exports){
+},{"./ReactInstanceMap":133,"./findDOMNode":179,"_process":43,"fbjs/lib/warning":28}],97:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -15138,7 +9322,7 @@ ReactPerf.measureMethods(ReactBrowserEventEmitter, 'ReactBrowserEventEmitter', {
 });
 
 module.exports = ReactBrowserEventEmitter;
-},{"./EventConstants":141,"./EventPluginHub":142,"./EventPluginRegistry":143,"./Object.assign":149,"./ReactEventEmitterMixin":184,"./ReactPerf":198,"./ViewportMetrics":228,"./isEventSupported":246}],154:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPluginHub":86,"./EventPluginRegistry":87,"./Object.assign":93,"./ReactEventEmitterMixin":128,"./ReactPerf":142,"./ViewportMetrics":172,"./isEventSupported":190}],98:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -15263,7 +9447,7 @@ var ReactChildReconciler = {
 
 module.exports = ReactChildReconciler;
 }).call(this,require('_process'))
-},{"./ReactReconciler":203,"./instantiateReactComponent":245,"./shouldUpdateReactComponent":253,"./traverseAllChildren":254,"_process":114,"fbjs/lib/warning":28}],155:[function(require,module,exports){
+},{"./ReactReconciler":147,"./instantiateReactComponent":189,"./shouldUpdateReactComponent":197,"./traverseAllChildren":198,"_process":43,"fbjs/lib/warning":28}],99:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -15446,7 +9630,7 @@ var ReactChildren = {
 };
 
 module.exports = ReactChildren;
-},{"./PooledClass":150,"./ReactElement":179,"./traverseAllChildren":254,"fbjs/lib/emptyFunction":9}],156:[function(require,module,exports){
+},{"./PooledClass":94,"./ReactElement":123,"./traverseAllChildren":198,"fbjs/lib/emptyFunction":9}],100:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -16220,7 +10404,7 @@ var ReactClass = {
 
 module.exports = ReactClass;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactComponent":157,"./ReactElement":179,"./ReactNoopUpdateQueue":196,"./ReactPropTypeLocationNames":199,"./ReactPropTypeLocations":200,"_process":114,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/keyMirror":20,"fbjs/lib/keyOf":21,"fbjs/lib/warning":28}],157:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactComponent":101,"./ReactElement":123,"./ReactNoopUpdateQueue":140,"./ReactPropTypeLocationNames":143,"./ReactPropTypeLocations":144,"_process":43,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/keyMirror":20,"fbjs/lib/keyOf":21,"fbjs/lib/warning":28}],101:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -16345,7 +10529,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactComponent;
 }).call(this,require('_process'))
-},{"./ReactNoopUpdateQueue":196,"./canDefineProperty":231,"_process":114,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],158:[function(require,module,exports){
+},{"./ReactNoopUpdateQueue":140,"./canDefineProperty":175,"_process":43,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],102:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -16387,7 +10571,7 @@ var ReactComponentBrowserEnvironment = {
 };
 
 module.exports = ReactComponentBrowserEnvironment;
-},{"./ReactDOMIDOperations":167,"./ReactMount":192}],159:[function(require,module,exports){
+},{"./ReactDOMIDOperations":111,"./ReactMount":136}],103:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -16441,7 +10625,7 @@ var ReactComponentEnvironment = {
 
 module.exports = ReactComponentEnvironment;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],160:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],104:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -16820,7 +11004,7 @@ var ReactCompositeComponentMixin = {
           // This is intentionally an invariant that gets caught. It's the same
           // behavior as without this statement except with a better message.
           !(typeof propTypes[propName] === 'function') ? process.env.NODE_ENV !== 'production' ? invariant(false, '%s: %s type `%s` is invalid; it must be a function, usually ' + 'from React.PropTypes.', componentName || 'React class', ReactPropTypeLocationNames[location], propName) : invariant(false) : undefined;
-          error = propTypes[propName](props, propName, componentName, location);
+          error = propTypes[propName](props, propName, componentName, location, null, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
         } catch (ex) {
           error = ex;
         }
@@ -17138,7 +11322,7 @@ var ReactCompositeComponent = {
 
 module.exports = ReactCompositeComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactComponentEnvironment":159,"./ReactCurrentOwner":161,"./ReactElement":179,"./ReactInstanceMap":189,"./ReactPerf":198,"./ReactPropTypeLocationNames":199,"./ReactPropTypeLocations":200,"./ReactReconciler":203,"./ReactUpdateQueue":209,"./shouldUpdateReactComponent":253,"_process":114,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],161:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactComponentEnvironment":103,"./ReactCurrentOwner":105,"./ReactElement":123,"./ReactInstanceMap":133,"./ReactPerf":142,"./ReactPropTypeLocationNames":143,"./ReactPropTypeLocations":144,"./ReactReconciler":147,"./ReactUpdateQueue":153,"./shouldUpdateReactComponent":197,"_process":43,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],105:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -17169,7 +11353,7 @@ var ReactCurrentOwner = {
 };
 
 module.exports = ReactCurrentOwner;
-},{}],162:[function(require,module,exports){
+},{}],106:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -17264,7 +11448,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = React;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":161,"./ReactDOMTextComponent":173,"./ReactDefaultInjection":176,"./ReactInstanceHandles":188,"./ReactMount":192,"./ReactPerf":198,"./ReactReconciler":203,"./ReactUpdates":210,"./ReactVersion":211,"./findDOMNode":235,"./renderSubtreeIntoContainer":250,"_process":114,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/warning":28}],163:[function(require,module,exports){
+},{"./ReactCurrentOwner":105,"./ReactDOMTextComponent":117,"./ReactDefaultInjection":120,"./ReactInstanceHandles":132,"./ReactMount":136,"./ReactPerf":142,"./ReactReconciler":147,"./ReactUpdates":154,"./ReactVersion":155,"./findDOMNode":179,"./renderSubtreeIntoContainer":194,"_process":43,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/warning":28}],107:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -17315,7 +11499,7 @@ var ReactDOMButton = {
 };
 
 module.exports = ReactDOMButton;
-},{}],164:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18280,7 +12464,7 @@ assign(ReactDOMComponent.prototype, ReactDOMComponent.Mixin, ReactMultiChild.Mix
 
 module.exports = ReactDOMComponent;
 }).call(this,require('_process'))
-},{"./AutoFocusUtils":128,"./CSSPropertyOperations":131,"./DOMProperty":136,"./DOMPropertyOperations":137,"./EventConstants":141,"./Object.assign":149,"./ReactBrowserEventEmitter":153,"./ReactComponentBrowserEnvironment":158,"./ReactDOMButton":163,"./ReactDOMInput":168,"./ReactDOMOption":169,"./ReactDOMSelect":170,"./ReactDOMTextarea":174,"./ReactMount":192,"./ReactMultiChild":193,"./ReactPerf":198,"./ReactUpdateQueue":209,"./canDefineProperty":231,"./escapeTextContentForBrowser":234,"./isEventSupported":246,"./setInnerHTML":251,"./setTextContent":252,"./validateDOMNesting":255,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/keyOf":21,"fbjs/lib/shallowEqual":26,"fbjs/lib/warning":28}],165:[function(require,module,exports){
+},{"./AutoFocusUtils":72,"./CSSPropertyOperations":75,"./DOMProperty":80,"./DOMPropertyOperations":81,"./EventConstants":85,"./Object.assign":93,"./ReactBrowserEventEmitter":97,"./ReactComponentBrowserEnvironment":102,"./ReactDOMButton":107,"./ReactDOMInput":112,"./ReactDOMOption":113,"./ReactDOMSelect":114,"./ReactDOMTextarea":118,"./ReactMount":136,"./ReactMultiChild":137,"./ReactPerf":142,"./ReactUpdateQueue":153,"./canDefineProperty":175,"./escapeTextContentForBrowser":178,"./isEventSupported":190,"./setInnerHTML":195,"./setTextContent":196,"./validateDOMNesting":199,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/keyOf":21,"fbjs/lib/shallowEqual":26,"fbjs/lib/warning":28}],109:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18460,7 +12644,7 @@ var ReactDOMFactories = mapObject({
 
 module.exports = ReactDOMFactories;
 }).call(this,require('_process'))
-},{"./ReactElement":179,"./ReactElementValidator":180,"_process":114,"fbjs/lib/mapObject":22}],166:[function(require,module,exports){
+},{"./ReactElement":123,"./ReactElementValidator":124,"_process":43,"fbjs/lib/mapObject":22}],110:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -18479,7 +12663,7 @@ var ReactDOMFeatureFlags = {
 };
 
 module.exports = ReactDOMFeatureFlags;
-},{}],167:[function(require,module,exports){
+},{}],111:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18576,7 +12760,7 @@ ReactPerf.measureMethods(ReactDOMIDOperations, 'ReactDOMIDOperations', {
 
 module.exports = ReactDOMIDOperations;
 }).call(this,require('_process'))
-},{"./DOMChildrenOperations":135,"./DOMPropertyOperations":137,"./ReactMount":192,"./ReactPerf":198,"_process":114,"fbjs/lib/invariant":17}],168:[function(require,module,exports){
+},{"./DOMChildrenOperations":79,"./DOMPropertyOperations":81,"./ReactMount":136,"./ReactPerf":142,"_process":43,"fbjs/lib/invariant":17}],112:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18732,7 +12916,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMInput;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":148,"./Object.assign":149,"./ReactDOMIDOperations":167,"./ReactMount":192,"./ReactUpdates":210,"_process":114,"fbjs/lib/invariant":17}],169:[function(require,module,exports){
+},{"./LinkedValueUtils":92,"./Object.assign":93,"./ReactDOMIDOperations":111,"./ReactMount":136,"./ReactUpdates":154,"_process":43,"fbjs/lib/invariant":17}],113:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -18824,7 +13008,7 @@ var ReactDOMOption = {
 
 module.exports = ReactDOMOption;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactChildren":155,"./ReactDOMSelect":170,"_process":114,"fbjs/lib/warning":28}],170:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactChildren":99,"./ReactDOMSelect":114,"_process":43,"fbjs/lib/warning":28}],114:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -19015,7 +13199,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMSelect;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":148,"./Object.assign":149,"./ReactMount":192,"./ReactUpdates":210,"_process":114,"fbjs/lib/warning":28}],171:[function(require,module,exports){
+},{"./LinkedValueUtils":92,"./Object.assign":93,"./ReactMount":136,"./ReactUpdates":154,"_process":43,"fbjs/lib/warning":28}],115:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19228,7 +13412,7 @@ var ReactDOMSelection = {
 };
 
 module.exports = ReactDOMSelection;
-},{"./getNodeForCharacterOffset":243,"./getTextContentAccessor":244,"fbjs/lib/ExecutionEnvironment":3}],172:[function(require,module,exports){
+},{"./getNodeForCharacterOffset":187,"./getTextContentAccessor":188,"fbjs/lib/ExecutionEnvironment":3}],116:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19255,7 +13439,7 @@ var ReactDOMServer = {
 };
 
 module.exports = ReactDOMServer;
-},{"./ReactDefaultInjection":176,"./ReactServerRendering":207,"./ReactVersion":211}],173:[function(require,module,exports){
+},{"./ReactDefaultInjection":120,"./ReactServerRendering":151,"./ReactVersion":155}],117:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -19385,7 +13569,7 @@ assign(ReactDOMTextComponent.prototype, {
 
 module.exports = ReactDOMTextComponent;
 }).call(this,require('_process'))
-},{"./DOMChildrenOperations":135,"./DOMPropertyOperations":137,"./Object.assign":149,"./ReactComponentBrowserEnvironment":158,"./ReactMount":192,"./escapeTextContentForBrowser":234,"./setTextContent":252,"./validateDOMNesting":255,"_process":114}],174:[function(require,module,exports){
+},{"./DOMChildrenOperations":79,"./DOMPropertyOperations":81,"./Object.assign":93,"./ReactComponentBrowserEnvironment":102,"./ReactMount":136,"./escapeTextContentForBrowser":178,"./setTextContent":196,"./validateDOMNesting":199,"_process":43}],118:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -19501,7 +13685,7 @@ function _handleChange(event) {
 
 module.exports = ReactDOMTextarea;
 }).call(this,require('_process'))
-},{"./LinkedValueUtils":148,"./Object.assign":149,"./ReactDOMIDOperations":167,"./ReactUpdates":210,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],175:[function(require,module,exports){
+},{"./LinkedValueUtils":92,"./Object.assign":93,"./ReactDOMIDOperations":111,"./ReactUpdates":154,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],119:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19569,7 +13753,7 @@ var ReactDefaultBatchingStrategy = {
 };
 
 module.exports = ReactDefaultBatchingStrategy;
-},{"./Object.assign":149,"./ReactUpdates":210,"./Transaction":227,"fbjs/lib/emptyFunction":9}],176:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactUpdates":154,"./Transaction":171,"fbjs/lib/emptyFunction":9}],120:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -19669,7 +13853,7 @@ module.exports = {
   inject: inject
 };
 }).call(this,require('_process'))
-},{"./BeforeInputEventPlugin":129,"./ChangeEventPlugin":133,"./ClientReactRootIndex":134,"./DefaultEventPluginOrder":139,"./EnterLeaveEventPlugin":140,"./HTMLDOMPropertyConfig":147,"./ReactBrowserComponentMixin":152,"./ReactComponentBrowserEnvironment":158,"./ReactDOMComponent":164,"./ReactDOMTextComponent":173,"./ReactDefaultBatchingStrategy":175,"./ReactDefaultPerf":177,"./ReactEventListener":185,"./ReactInjection":186,"./ReactInstanceHandles":188,"./ReactMount":192,"./ReactReconcileTransaction":202,"./SVGDOMPropertyConfig":212,"./SelectEventPlugin":213,"./ServerReactRootIndex":214,"./SimpleEventPlugin":215,"_process":114,"fbjs/lib/ExecutionEnvironment":3}],177:[function(require,module,exports){
+},{"./BeforeInputEventPlugin":73,"./ChangeEventPlugin":77,"./ClientReactRootIndex":78,"./DefaultEventPluginOrder":83,"./EnterLeaveEventPlugin":84,"./HTMLDOMPropertyConfig":91,"./ReactBrowserComponentMixin":96,"./ReactComponentBrowserEnvironment":102,"./ReactDOMComponent":108,"./ReactDOMTextComponent":117,"./ReactDefaultBatchingStrategy":119,"./ReactDefaultPerf":121,"./ReactEventListener":129,"./ReactInjection":130,"./ReactInstanceHandles":132,"./ReactMount":136,"./ReactReconcileTransaction":146,"./SVGDOMPropertyConfig":156,"./SelectEventPlugin":157,"./ServerReactRootIndex":158,"./SimpleEventPlugin":159,"_process":43,"fbjs/lib/ExecutionEnvironment":3}],121:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -19907,7 +14091,7 @@ var ReactDefaultPerf = {
 };
 
 module.exports = ReactDefaultPerf;
-},{"./DOMProperty":136,"./ReactDefaultPerfAnalysis":178,"./ReactMount":192,"./ReactPerf":198,"fbjs/lib/performanceNow":25}],178:[function(require,module,exports){
+},{"./DOMProperty":80,"./ReactDefaultPerfAnalysis":122,"./ReactMount":136,"./ReactPerf":142,"fbjs/lib/performanceNow":25}],122:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -20109,7 +14293,7 @@ var ReactDefaultPerfAnalysis = {
 };
 
 module.exports = ReactDefaultPerfAnalysis;
-},{"./Object.assign":149}],179:[function(require,module,exports){
+},{"./Object.assign":93}],123:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -20359,7 +14543,7 @@ ReactElement.isValidElement = function (object) {
 
 module.exports = ReactElement;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactCurrentOwner":161,"./canDefineProperty":231,"_process":114}],180:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactCurrentOwner":105,"./canDefineProperty":175,"_process":43}],124:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -20538,7 +14722,7 @@ function checkPropTypes(componentName, propTypes, props, location) {
         // This is intentionally an invariant that gets caught. It's the same
         // behavior as without this statement except with a better message.
         !(typeof propTypes[propName] === 'function') ? process.env.NODE_ENV !== 'production' ? invariant(false, '%s: %s type `%s` is invalid; it must be a function, usually from ' + 'React.PropTypes.', componentName || 'React class', ReactPropTypeLocationNames[location], propName) : invariant(false) : undefined;
-        error = propTypes[propName](props, propName, componentName, location);
+        error = propTypes[propName](props, propName, componentName, location, null, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
       } catch (ex) {
         error = ex;
       }
@@ -20643,7 +14827,7 @@ var ReactElementValidator = {
 
 module.exports = ReactElementValidator;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":161,"./ReactElement":179,"./ReactPropTypeLocationNames":199,"./ReactPropTypeLocations":200,"./canDefineProperty":231,"./getIteratorFn":242,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],181:[function(require,module,exports){
+},{"./ReactCurrentOwner":105,"./ReactElement":123,"./ReactPropTypeLocationNames":143,"./ReactPropTypeLocations":144,"./canDefineProperty":175,"./getIteratorFn":186,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],125:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -20671,6 +14855,10 @@ var ReactEmptyComponentInjection = {
   }
 };
 
+function registerNullComponentID() {
+  ReactEmptyComponentRegistry.registerNullComponentID(this._rootNodeID);
+}
+
 var ReactEmptyComponent = function (instantiate) {
   this._currentElement = null;
   this._rootNodeID = null;
@@ -20679,7 +14867,7 @@ var ReactEmptyComponent = function (instantiate) {
 assign(ReactEmptyComponent.prototype, {
   construct: function (element) {},
   mountComponent: function (rootID, transaction, context) {
-    ReactEmptyComponentRegistry.registerNullComponentID(rootID);
+    transaction.getReactMountReady().enqueue(registerNullComponentID, this);
     this._rootNodeID = rootID;
     return ReactReconciler.mountComponent(this._renderedComponent, rootID, transaction, context);
   },
@@ -20695,7 +14883,7 @@ assign(ReactEmptyComponent.prototype, {
 ReactEmptyComponent.injection = ReactEmptyComponentInjection;
 
 module.exports = ReactEmptyComponent;
-},{"./Object.assign":149,"./ReactElement":179,"./ReactEmptyComponentRegistry":182,"./ReactReconciler":203}],182:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactElement":123,"./ReactEmptyComponentRegistry":126,"./ReactReconciler":147}],126:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -20744,7 +14932,7 @@ var ReactEmptyComponentRegistry = {
 };
 
 module.exports = ReactEmptyComponentRegistry;
-},{}],183:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -20824,7 +15012,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactErrorUtils;
 }).call(this,require('_process'))
-},{"_process":114}],184:[function(require,module,exports){
+},{"_process":43}],128:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -20863,7 +15051,7 @@ var ReactEventEmitterMixin = {
 };
 
 module.exports = ReactEventEmitterMixin;
-},{"./EventPluginHub":142}],185:[function(require,module,exports){
+},{"./EventPluginHub":86}],129:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21075,7 +15263,7 @@ var ReactEventListener = {
 };
 
 module.exports = ReactEventListener;
-},{"./Object.assign":149,"./PooledClass":150,"./ReactInstanceHandles":188,"./ReactMount":192,"./ReactUpdates":210,"./getEventTarget":241,"fbjs/lib/EventListener":2,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/getUnboundedScrollPosition":14}],186:[function(require,module,exports){
+},{"./Object.assign":93,"./PooledClass":94,"./ReactInstanceHandles":132,"./ReactMount":136,"./ReactUpdates":154,"./getEventTarget":185,"fbjs/lib/EventListener":2,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/getUnboundedScrollPosition":14}],130:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21114,7 +15302,7 @@ var ReactInjection = {
 };
 
 module.exports = ReactInjection;
-},{"./DOMProperty":136,"./EventPluginHub":142,"./ReactBrowserEventEmitter":153,"./ReactClass":156,"./ReactComponentEnvironment":159,"./ReactEmptyComponent":181,"./ReactNativeComponent":195,"./ReactPerf":198,"./ReactRootIndex":205,"./ReactUpdates":210}],187:[function(require,module,exports){
+},{"./DOMProperty":80,"./EventPluginHub":86,"./ReactBrowserEventEmitter":97,"./ReactClass":100,"./ReactComponentEnvironment":103,"./ReactEmptyComponent":125,"./ReactNativeComponent":139,"./ReactPerf":142,"./ReactRootIndex":149,"./ReactUpdates":154}],131:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21239,7 +15427,7 @@ var ReactInputSelection = {
 };
 
 module.exports = ReactInputSelection;
-},{"./ReactDOMSelection":171,"fbjs/lib/containsNode":6,"fbjs/lib/focusNode":11,"fbjs/lib/getActiveElement":12}],188:[function(require,module,exports){
+},{"./ReactDOMSelection":115,"fbjs/lib/containsNode":6,"fbjs/lib/focusNode":11,"fbjs/lib/getActiveElement":12}],132:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -21544,7 +15732,7 @@ var ReactInstanceHandles = {
 
 module.exports = ReactInstanceHandles;
 }).call(this,require('_process'))
-},{"./ReactRootIndex":205,"_process":114,"fbjs/lib/invariant":17}],189:[function(require,module,exports){
+},{"./ReactRootIndex":149,"_process":43,"fbjs/lib/invariant":17}],133:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21592,7 +15780,7 @@ var ReactInstanceMap = {
 };
 
 module.exports = ReactInstanceMap;
-},{}],190:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -21669,7 +15857,7 @@ var React = {
 
 module.exports = React;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactChildren":155,"./ReactClass":156,"./ReactComponent":157,"./ReactDOMFactories":165,"./ReactElement":179,"./ReactElementValidator":180,"./ReactPropTypes":201,"./ReactVersion":211,"./onlyChild":248,"_process":114}],191:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactChildren":99,"./ReactClass":100,"./ReactComponent":101,"./ReactDOMFactories":109,"./ReactElement":123,"./ReactElementValidator":124,"./ReactPropTypes":145,"./ReactVersion":155,"./onlyChild":192,"_process":43}],135:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -21715,7 +15903,7 @@ var ReactMarkupChecksum = {
 };
 
 module.exports = ReactMarkupChecksum;
-},{"./adler32":230}],192:[function(require,module,exports){
+},{"./adler32":174}],136:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -22568,7 +16756,7 @@ ReactPerf.measureMethods(ReactMount, 'ReactMount', {
 
 module.exports = ReactMount;
 }).call(this,require('_process'))
-},{"./DOMProperty":136,"./Object.assign":149,"./ReactBrowserEventEmitter":153,"./ReactCurrentOwner":161,"./ReactDOMFeatureFlags":166,"./ReactElement":179,"./ReactEmptyComponentRegistry":182,"./ReactInstanceHandles":188,"./ReactInstanceMap":189,"./ReactMarkupChecksum":191,"./ReactPerf":198,"./ReactReconciler":203,"./ReactUpdateQueue":209,"./ReactUpdates":210,"./instantiateReactComponent":245,"./setInnerHTML":251,"./shouldUpdateReactComponent":253,"./validateDOMNesting":255,"_process":114,"fbjs/lib/containsNode":6,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],193:[function(require,module,exports){
+},{"./DOMProperty":80,"./Object.assign":93,"./ReactBrowserEventEmitter":97,"./ReactCurrentOwner":105,"./ReactDOMFeatureFlags":110,"./ReactElement":123,"./ReactEmptyComponentRegistry":126,"./ReactInstanceHandles":132,"./ReactInstanceMap":133,"./ReactMarkupChecksum":135,"./ReactPerf":142,"./ReactReconciler":147,"./ReactUpdateQueue":153,"./ReactUpdates":154,"./instantiateReactComponent":189,"./setInnerHTML":195,"./shouldUpdateReactComponent":197,"./validateDOMNesting":199,"_process":43,"fbjs/lib/containsNode":6,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],137:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -23067,7 +17255,7 @@ var ReactMultiChild = {
 
 module.exports = ReactMultiChild;
 }).call(this,require('_process'))
-},{"./ReactChildReconciler":154,"./ReactComponentEnvironment":159,"./ReactCurrentOwner":161,"./ReactMultiChildUpdateTypes":194,"./ReactReconciler":203,"./flattenChildren":236,"_process":114}],194:[function(require,module,exports){
+},{"./ReactChildReconciler":98,"./ReactComponentEnvironment":103,"./ReactCurrentOwner":105,"./ReactMultiChildUpdateTypes":138,"./ReactReconciler":147,"./flattenChildren":180,"_process":43}],138:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -23100,7 +17288,7 @@ var ReactMultiChildUpdateTypes = keyMirror({
 });
 
 module.exports = ReactMultiChildUpdateTypes;
-},{"fbjs/lib/keyMirror":20}],195:[function(require,module,exports){
+},{"fbjs/lib/keyMirror":20}],139:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -23197,7 +17385,7 @@ var ReactNativeComponent = {
 
 module.exports = ReactNativeComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"_process":114,"fbjs/lib/invariant":17}],196:[function(require,module,exports){
+},{"./Object.assign":93,"_process":43,"fbjs/lib/invariant":17}],140:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -23318,7 +17506,7 @@ var ReactNoopUpdateQueue = {
 
 module.exports = ReactNoopUpdateQueue;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/warning":28}],197:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/warning":28}],141:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -23412,7 +17600,7 @@ var ReactOwner = {
 
 module.exports = ReactOwner;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],198:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],142:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -23511,7 +17699,7 @@ function _noMeasure(objName, fnName, func) {
 
 module.exports = ReactPerf;
 }).call(this,require('_process'))
-},{"_process":114}],199:[function(require,module,exports){
+},{"_process":43}],143:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -23538,7 +17726,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = ReactPropTypeLocationNames;
 }).call(this,require('_process'))
-},{"_process":114}],200:[function(require,module,exports){
+},{"_process":43}],144:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -23561,7 +17749,7 @@ var ReactPropTypeLocations = keyMirror({
 });
 
 module.exports = ReactPropTypeLocations;
-},{"fbjs/lib/keyMirror":20}],201:[function(require,module,exports){
+},{"fbjs/lib/keyMirror":20}],145:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -23701,7 +17889,7 @@ function createArrayOfTypeChecker(typeChecker) {
       return new Error('Invalid ' + locationName + ' `' + propFullName + '` of type ' + ('`' + propType + '` supplied to `' + componentName + '`, expected an array.'));
     }
     for (var i = 0; i < propValue.length; i++) {
-      var error = typeChecker(propValue, i, componentName, location, propFullName + '[' + i + ']');
+      var error = typeChecker(propValue, i, componentName, location, propFullName + '[' + i + ']', 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
       if (error instanceof Error) {
         return error;
       }
@@ -23767,7 +17955,7 @@ function createObjectOfTypeChecker(typeChecker) {
     }
     for (var key in propValue) {
       if (propValue.hasOwnProperty(key)) {
-        var error = typeChecker(propValue, key, componentName, location, propFullName + '.' + key);
+        var error = typeChecker(propValue, key, componentName, location, propFullName + '.' + key, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
         if (error instanceof Error) {
           return error;
         }
@@ -23788,7 +17976,7 @@ function createUnionTypeChecker(arrayOfTypeCheckers) {
   function validate(props, propName, componentName, location, propFullName) {
     for (var i = 0; i < arrayOfTypeCheckers.length; i++) {
       var checker = arrayOfTypeCheckers[i];
-      if (checker(props, propName, componentName, location, propFullName) == null) {
+      if (checker(props, propName, componentName, location, propFullName, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED') == null) {
         return null;
       }
     }
@@ -23823,7 +18011,7 @@ function createShapeTypeChecker(shapeTypes) {
       if (!checker) {
         continue;
       }
-      var error = checker(propValue, key, componentName, location, propFullName + '.' + key);
+      var error = checker(propValue, key, componentName, location, propFullName + '.' + key, 'SECRET_DO_NOT_PASS_THIS_OR_YOU_WILL_BE_FIRED');
       if (error) {
         return error;
       }
@@ -23918,7 +18106,7 @@ function getClassName(propValue) {
 }
 
 module.exports = ReactPropTypes;
-},{"./ReactElement":179,"./ReactPropTypeLocationNames":199,"./getIteratorFn":242,"fbjs/lib/emptyFunction":9}],202:[function(require,module,exports){
+},{"./ReactElement":123,"./ReactPropTypeLocationNames":143,"./getIteratorFn":186,"fbjs/lib/emptyFunction":9}],146:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -24070,7 +18258,7 @@ assign(ReactReconcileTransaction.prototype, Transaction.Mixin, Mixin);
 PooledClass.addPoolingTo(ReactReconcileTransaction);
 
 module.exports = ReactReconcileTransaction;
-},{"./CallbackQueue":132,"./Object.assign":149,"./PooledClass":150,"./ReactBrowserEventEmitter":153,"./ReactDOMFeatureFlags":166,"./ReactInputSelection":187,"./Transaction":227}],203:[function(require,module,exports){
+},{"./CallbackQueue":76,"./Object.assign":93,"./PooledClass":94,"./ReactBrowserEventEmitter":97,"./ReactDOMFeatureFlags":110,"./ReactInputSelection":131,"./Transaction":171}],147:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -24178,7 +18366,7 @@ var ReactReconciler = {
 };
 
 module.exports = ReactReconciler;
-},{"./ReactRef":204}],204:[function(require,module,exports){
+},{"./ReactRef":148}],148:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -24257,7 +18445,7 @@ ReactRef.detachRefs = function (instance, element) {
 };
 
 module.exports = ReactRef;
-},{"./ReactOwner":197}],205:[function(require,module,exports){
+},{"./ReactOwner":141}],149:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -24287,7 +18475,7 @@ var ReactRootIndex = {
 };
 
 module.exports = ReactRootIndex;
-},{}],206:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -24311,7 +18499,7 @@ var ReactServerBatchingStrategy = {
 };
 
 module.exports = ReactServerBatchingStrategy;
-},{}],207:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -24397,7 +18585,7 @@ module.exports = {
   renderToStaticMarkup: renderToStaticMarkup
 };
 }).call(this,require('_process'))
-},{"./ReactDefaultBatchingStrategy":175,"./ReactElement":179,"./ReactInstanceHandles":188,"./ReactMarkupChecksum":191,"./ReactServerBatchingStrategy":206,"./ReactServerRenderingTransaction":208,"./ReactUpdates":210,"./instantiateReactComponent":245,"_process":114,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17}],208:[function(require,module,exports){
+},{"./ReactDefaultBatchingStrategy":119,"./ReactElement":123,"./ReactInstanceHandles":132,"./ReactMarkupChecksum":135,"./ReactServerBatchingStrategy":150,"./ReactServerRenderingTransaction":152,"./ReactUpdates":154,"./instantiateReactComponent":189,"_process":43,"fbjs/lib/emptyObject":10,"fbjs/lib/invariant":17}],152:[function(require,module,exports){
 /**
  * Copyright 2014-2015, Facebook, Inc.
  * All rights reserved.
@@ -24485,7 +18673,7 @@ assign(ReactServerRenderingTransaction.prototype, Transaction.Mixin, Mixin);
 PooledClass.addPoolingTo(ReactServerRenderingTransaction);
 
 module.exports = ReactServerRenderingTransaction;
-},{"./CallbackQueue":132,"./Object.assign":149,"./PooledClass":150,"./Transaction":227,"fbjs/lib/emptyFunction":9}],209:[function(require,module,exports){
+},{"./CallbackQueue":76,"./Object.assign":93,"./PooledClass":94,"./Transaction":171,"fbjs/lib/emptyFunction":9}],153:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -24745,7 +18933,7 @@ var ReactUpdateQueue = {
 
 module.exports = ReactUpdateQueue;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactCurrentOwner":161,"./ReactElement":179,"./ReactInstanceMap":189,"./ReactUpdates":210,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],210:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactCurrentOwner":105,"./ReactElement":123,"./ReactInstanceMap":133,"./ReactUpdates":154,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],154:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -24971,7 +19159,7 @@ var ReactUpdates = {
 
 module.exports = ReactUpdates;
 }).call(this,require('_process'))
-},{"./CallbackQueue":132,"./Object.assign":149,"./PooledClass":150,"./ReactPerf":198,"./ReactReconciler":203,"./Transaction":227,"_process":114,"fbjs/lib/invariant":17}],211:[function(require,module,exports){
+},{"./CallbackQueue":76,"./Object.assign":93,"./PooledClass":94,"./ReactPerf":142,"./ReactReconciler":147,"./Transaction":171,"_process":43,"fbjs/lib/invariant":17}],155:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -24985,8 +19173,8 @@ module.exports = ReactUpdates;
 
 'use strict';
 
-module.exports = '0.14.7';
-},{}],212:[function(require,module,exports){
+module.exports = '0.14.9';
+},{}],156:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -25114,7 +19302,7 @@ var SVGDOMPropertyConfig = {
 };
 
 module.exports = SVGDOMPropertyConfig;
-},{"./DOMProperty":136}],213:[function(require,module,exports){
+},{"./DOMProperty":80}],157:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -25316,7 +19504,7 @@ var SelectEventPlugin = {
 };
 
 module.exports = SelectEventPlugin;
-},{"./EventConstants":141,"./EventPropagators":145,"./ReactInputSelection":187,"./SyntheticEvent":219,"./isTextInputElement":247,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/getActiveElement":12,"fbjs/lib/keyOf":21,"fbjs/lib/shallowEqual":26}],214:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPropagators":89,"./ReactInputSelection":131,"./SyntheticEvent":163,"./isTextInputElement":191,"fbjs/lib/ExecutionEnvironment":3,"fbjs/lib/getActiveElement":12,"fbjs/lib/keyOf":21,"fbjs/lib/shallowEqual":26}],158:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -25346,7 +19534,7 @@ var ServerReactRootIndex = {
 };
 
 module.exports = ServerReactRootIndex;
-},{}],215:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -25936,7 +20124,7 @@ var SimpleEventPlugin = {
 
 module.exports = SimpleEventPlugin;
 }).call(this,require('_process'))
-},{"./EventConstants":141,"./EventPropagators":145,"./ReactMount":192,"./SyntheticClipboardEvent":216,"./SyntheticDragEvent":218,"./SyntheticEvent":219,"./SyntheticFocusEvent":220,"./SyntheticKeyboardEvent":222,"./SyntheticMouseEvent":223,"./SyntheticTouchEvent":224,"./SyntheticUIEvent":225,"./SyntheticWheelEvent":226,"./getEventCharCode":238,"_process":114,"fbjs/lib/EventListener":2,"fbjs/lib/emptyFunction":9,"fbjs/lib/invariant":17,"fbjs/lib/keyOf":21}],216:[function(require,module,exports){
+},{"./EventConstants":85,"./EventPropagators":89,"./ReactMount":136,"./SyntheticClipboardEvent":160,"./SyntheticDragEvent":162,"./SyntheticEvent":163,"./SyntheticFocusEvent":164,"./SyntheticKeyboardEvent":166,"./SyntheticMouseEvent":167,"./SyntheticTouchEvent":168,"./SyntheticUIEvent":169,"./SyntheticWheelEvent":170,"./getEventCharCode":182,"_process":43,"fbjs/lib/EventListener":2,"fbjs/lib/emptyFunction":9,"fbjs/lib/invariant":17,"fbjs/lib/keyOf":21}],160:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -25976,7 +20164,7 @@ function SyntheticClipboardEvent(dispatchConfig, dispatchMarker, nativeEvent, na
 SyntheticEvent.augmentClass(SyntheticClipboardEvent, ClipboardEventInterface);
 
 module.exports = SyntheticClipboardEvent;
-},{"./SyntheticEvent":219}],217:[function(require,module,exports){
+},{"./SyntheticEvent":163}],161:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26014,7 +20202,7 @@ function SyntheticCompositionEvent(dispatchConfig, dispatchMarker, nativeEvent, 
 SyntheticEvent.augmentClass(SyntheticCompositionEvent, CompositionEventInterface);
 
 module.exports = SyntheticCompositionEvent;
-},{"./SyntheticEvent":219}],218:[function(require,module,exports){
+},{"./SyntheticEvent":163}],162:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26052,7 +20240,7 @@ function SyntheticDragEvent(dispatchConfig, dispatchMarker, nativeEvent, nativeE
 SyntheticMouseEvent.augmentClass(SyntheticDragEvent, DragEventInterface);
 
 module.exports = SyntheticDragEvent;
-},{"./SyntheticMouseEvent":223}],219:[function(require,module,exports){
+},{"./SyntheticMouseEvent":167}],163:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -26235,7 +20423,7 @@ PooledClass.addPoolingTo(SyntheticEvent, PooledClass.fourArgumentPooler);
 
 module.exports = SyntheticEvent;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./PooledClass":150,"_process":114,"fbjs/lib/emptyFunction":9,"fbjs/lib/warning":28}],220:[function(require,module,exports){
+},{"./Object.assign":93,"./PooledClass":94,"_process":43,"fbjs/lib/emptyFunction":9,"fbjs/lib/warning":28}],164:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26273,7 +20461,7 @@ function SyntheticFocusEvent(dispatchConfig, dispatchMarker, nativeEvent, native
 SyntheticUIEvent.augmentClass(SyntheticFocusEvent, FocusEventInterface);
 
 module.exports = SyntheticFocusEvent;
-},{"./SyntheticUIEvent":225}],221:[function(require,module,exports){
+},{"./SyntheticUIEvent":169}],165:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26312,7 +20500,7 @@ function SyntheticInputEvent(dispatchConfig, dispatchMarker, nativeEvent, native
 SyntheticEvent.augmentClass(SyntheticInputEvent, InputEventInterface);
 
 module.exports = SyntheticInputEvent;
-},{"./SyntheticEvent":219}],222:[function(require,module,exports){
+},{"./SyntheticEvent":163}],166:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26398,7 +20586,7 @@ function SyntheticKeyboardEvent(dispatchConfig, dispatchMarker, nativeEvent, nat
 SyntheticUIEvent.augmentClass(SyntheticKeyboardEvent, KeyboardEventInterface);
 
 module.exports = SyntheticKeyboardEvent;
-},{"./SyntheticUIEvent":225,"./getEventCharCode":238,"./getEventKey":239,"./getEventModifierState":240}],223:[function(require,module,exports){
+},{"./SyntheticUIEvent":169,"./getEventCharCode":182,"./getEventKey":183,"./getEventModifierState":184}],167:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26472,7 +20660,7 @@ function SyntheticMouseEvent(dispatchConfig, dispatchMarker, nativeEvent, native
 SyntheticUIEvent.augmentClass(SyntheticMouseEvent, MouseEventInterface);
 
 module.exports = SyntheticMouseEvent;
-},{"./SyntheticUIEvent":225,"./ViewportMetrics":228,"./getEventModifierState":240}],224:[function(require,module,exports){
+},{"./SyntheticUIEvent":169,"./ViewportMetrics":172,"./getEventModifierState":184}],168:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26519,7 +20707,7 @@ function SyntheticTouchEvent(dispatchConfig, dispatchMarker, nativeEvent, native
 SyntheticUIEvent.augmentClass(SyntheticTouchEvent, TouchEventInterface);
 
 module.exports = SyntheticTouchEvent;
-},{"./SyntheticUIEvent":225,"./getEventModifierState":240}],225:[function(require,module,exports){
+},{"./SyntheticUIEvent":169,"./getEventModifierState":184}],169:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26580,7 +20768,7 @@ function SyntheticUIEvent(dispatchConfig, dispatchMarker, nativeEvent, nativeEve
 SyntheticEvent.augmentClass(SyntheticUIEvent, UIEventInterface);
 
 module.exports = SyntheticUIEvent;
-},{"./SyntheticEvent":219,"./getEventTarget":241}],226:[function(require,module,exports){
+},{"./SyntheticEvent":163,"./getEventTarget":185}],170:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26636,7 +20824,7 @@ function SyntheticWheelEvent(dispatchConfig, dispatchMarker, nativeEvent, native
 SyntheticMouseEvent.augmentClass(SyntheticWheelEvent, WheelEventInterface);
 
 module.exports = SyntheticWheelEvent;
-},{"./SyntheticMouseEvent":223}],227:[function(require,module,exports){
+},{"./SyntheticMouseEvent":167}],171:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -26870,7 +21058,7 @@ var Transaction = {
 
 module.exports = Transaction;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],228:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],172:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -26898,7 +21086,7 @@ var ViewportMetrics = {
 };
 
 module.exports = ViewportMetrics;
-},{}],229:[function(require,module,exports){
+},{}],173:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2014-2015, Facebook, Inc.
@@ -26960,7 +21148,7 @@ function accumulateInto(current, next) {
 
 module.exports = accumulateInto;
 }).call(this,require('_process'))
-},{"_process":114,"fbjs/lib/invariant":17}],230:[function(require,module,exports){
+},{"_process":43,"fbjs/lib/invariant":17}],174:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27003,7 +21191,7 @@ function adler32(data) {
 }
 
 module.exports = adler32;
-},{}],231:[function(require,module,exports){
+},{}],175:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27030,7 +21218,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = canDefineProperty;
 }).call(this,require('_process'))
-},{"_process":114}],232:[function(require,module,exports){
+},{"_process":43}],176:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27086,7 +21274,7 @@ function dangerousStyleValue(name, value) {
 }
 
 module.exports = dangerousStyleValue;
-},{"./CSSProperty":130}],233:[function(require,module,exports){
+},{"./CSSProperty":74}],177:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27137,7 +21325,7 @@ function deprecated(fnName, newModule, newPackage, ctx, fn) {
 
 module.exports = deprecated;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"_process":114,"fbjs/lib/warning":28}],234:[function(require,module,exports){
+},{"./Object.assign":93,"_process":43,"fbjs/lib/warning":28}],178:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27176,7 +21364,7 @@ function escapeTextContentForBrowser(text) {
 }
 
 module.exports = escapeTextContentForBrowser;
-},{}],235:[function(require,module,exports){
+},{}],179:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27228,7 +21416,7 @@ function findDOMNode(componentOrElement) {
 
 module.exports = findDOMNode;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":161,"./ReactInstanceMap":189,"./ReactMount":192,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],236:[function(require,module,exports){
+},{"./ReactCurrentOwner":105,"./ReactInstanceMap":133,"./ReactMount":136,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],180:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27279,7 +21467,7 @@ function flattenChildren(children) {
 
 module.exports = flattenChildren;
 }).call(this,require('_process'))
-},{"./traverseAllChildren":254,"_process":114,"fbjs/lib/warning":28}],237:[function(require,module,exports){
+},{"./traverseAllChildren":198,"_process":43,"fbjs/lib/warning":28}],181:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27309,7 +21497,7 @@ var forEachAccumulated = function (arr, cb, scope) {
 };
 
 module.exports = forEachAccumulated;
-},{}],238:[function(require,module,exports){
+},{}],182:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27360,7 +21548,7 @@ function getEventCharCode(nativeEvent) {
 }
 
 module.exports = getEventCharCode;
-},{}],239:[function(require,module,exports){
+},{}],183:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27464,7 +21652,7 @@ function getEventKey(nativeEvent) {
 }
 
 module.exports = getEventKey;
-},{"./getEventCharCode":238}],240:[function(require,module,exports){
+},{"./getEventCharCode":182}],184:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27509,7 +21697,7 @@ function getEventModifierState(nativeEvent) {
 }
 
 module.exports = getEventModifierState;
-},{}],241:[function(require,module,exports){
+},{}],185:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27539,7 +21727,7 @@ function getEventTarget(nativeEvent) {
 }
 
 module.exports = getEventTarget;
-},{}],242:[function(require,module,exports){
+},{}],186:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27580,7 +21768,7 @@ function getIteratorFn(maybeIterable) {
 }
 
 module.exports = getIteratorFn;
-},{}],243:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27654,7 +21842,7 @@ function getNodeForCharacterOffset(root, offset) {
 }
 
 module.exports = getNodeForCharacterOffset;
-},{}],244:[function(require,module,exports){
+},{}],188:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27688,7 +21876,7 @@ function getTextContentAccessor() {
 }
 
 module.exports = getTextContentAccessor;
-},{"fbjs/lib/ExecutionEnvironment":3}],245:[function(require,module,exports){
+},{"fbjs/lib/ExecutionEnvironment":3}],189:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27803,7 +21991,7 @@ function instantiateReactComponent(node) {
 
 module.exports = instantiateReactComponent;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"./ReactCompositeComponent":160,"./ReactEmptyComponent":181,"./ReactNativeComponent":195,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],246:[function(require,module,exports){
+},{"./Object.assign":93,"./ReactCompositeComponent":104,"./ReactEmptyComponent":125,"./ReactNativeComponent":139,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],190:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27864,7 +22052,7 @@ function isEventSupported(eventNameSuffix, capture) {
 }
 
 module.exports = isEventSupported;
-},{"fbjs/lib/ExecutionEnvironment":3}],247:[function(require,module,exports){
+},{"fbjs/lib/ExecutionEnvironment":3}],191:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27905,7 +22093,7 @@ function isTextInputElement(elem) {
 }
 
 module.exports = isTextInputElement;
-},{}],248:[function(require,module,exports){
+},{}],192:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -27941,7 +22129,7 @@ function onlyChild(children) {
 
 module.exports = onlyChild;
 }).call(this,require('_process'))
-},{"./ReactElement":179,"_process":114,"fbjs/lib/invariant":17}],249:[function(require,module,exports){
+},{"./ReactElement":123,"_process":43,"fbjs/lib/invariant":17}],193:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27968,7 +22156,7 @@ function quoteAttributeValueForBrowser(value) {
 }
 
 module.exports = quoteAttributeValueForBrowser;
-},{"./escapeTextContentForBrowser":234}],250:[function(require,module,exports){
+},{"./escapeTextContentForBrowser":178}],194:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -27985,7 +22173,7 @@ module.exports = quoteAttributeValueForBrowser;
 var ReactMount = require('./ReactMount');
 
 module.exports = ReactMount.renderSubtreeIntoContainer;
-},{"./ReactMount":192}],251:[function(require,module,exports){
+},{"./ReactMount":136}],195:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -28076,7 +22264,7 @@ if (ExecutionEnvironment.canUseDOM) {
 }
 
 module.exports = setInnerHTML;
-},{"fbjs/lib/ExecutionEnvironment":3}],252:[function(require,module,exports){
+},{"fbjs/lib/ExecutionEnvironment":3}],196:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -28117,7 +22305,7 @@ if (ExecutionEnvironment.canUseDOM) {
 }
 
 module.exports = setTextContent;
-},{"./escapeTextContentForBrowser":234,"./setInnerHTML":251,"fbjs/lib/ExecutionEnvironment":3}],253:[function(require,module,exports){
+},{"./escapeTextContentForBrowser":178,"./setInnerHTML":195,"fbjs/lib/ExecutionEnvironment":3}],197:[function(require,module,exports){
 /**
  * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
@@ -28161,7 +22349,7 @@ function shouldUpdateReactComponent(prevElement, nextElement) {
 }
 
 module.exports = shouldUpdateReactComponent;
-},{}],254:[function(require,module,exports){
+},{}],198:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2013-2015, Facebook, Inc.
@@ -28353,7 +22541,7 @@ function traverseAllChildren(children, callback, traverseContext) {
 
 module.exports = traverseAllChildren;
 }).call(this,require('_process'))
-},{"./ReactCurrentOwner":161,"./ReactElement":179,"./ReactInstanceHandles":188,"./getIteratorFn":242,"_process":114,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],255:[function(require,module,exports){
+},{"./ReactCurrentOwner":105,"./ReactElement":123,"./ReactInstanceHandles":132,"./getIteratorFn":186,"_process":43,"fbjs/lib/invariant":17,"fbjs/lib/warning":28}],199:[function(require,module,exports){
 (function (process){
 /**
  * Copyright 2015, Facebook, Inc.
@@ -28719,24 +22907,25 @@ if (process.env.NODE_ENV !== 'production') {
 
 module.exports = validateDOMNesting;
 }).call(this,require('_process'))
-},{"./Object.assign":149,"_process":114,"fbjs/lib/emptyFunction":9,"fbjs/lib/warning":28}],256:[function(require,module,exports){
+},{"./Object.assign":93,"_process":43,"fbjs/lib/emptyFunction":9,"fbjs/lib/warning":28}],200:[function(require,module,exports){
 'use strict';
 
 module.exports = require('./lib/React');
 
-},{"./lib/React":151}],257:[function(require,module,exports){
+},{"./lib/React":95}],201:[function(require,module,exports){
 'use strict';
+
+exports.__esModule = true;
 
 var _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; };
 
-exports.__esModule = true;
-exports["default"] = applyMiddleware;
+exports['default'] = applyMiddleware;
 
 var _compose = require('./compose');
 
 var _compose2 = _interopRequireDefault(_compose);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 /**
  * Creates a store enhancer that applies middleware to the dispatch method
@@ -28760,8 +22949,8 @@ function applyMiddleware() {
   }
 
   return function (createStore) {
-    return function (reducer, initialState, enhancer) {
-      var store = createStore(reducer, initialState, enhancer);
+    return function (reducer, preloadedState, enhancer) {
+      var store = createStore(reducer, preloadedState, enhancer);
       var _dispatch = store.dispatch;
       var chain = [];
 
@@ -28774,7 +22963,7 @@ function applyMiddleware() {
       chain = middlewares.map(function (middleware) {
         return middleware(middlewareAPI);
       });
-      _dispatch = _compose2["default"].apply(undefined, chain)(store.dispatch);
+      _dispatch = _compose2['default'].apply(undefined, chain)(store.dispatch);
 
       return _extends({}, store, {
         dispatch: _dispatch
@@ -28782,11 +22971,11 @@ function applyMiddleware() {
     };
   };
 }
-},{"./compose":260}],258:[function(require,module,exports){
+},{"./compose":204}],202:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
-exports["default"] = bindActionCreators;
+exports['default'] = bindActionCreators;
 function bindActionCreator(actionCreator, dispatch) {
   return function () {
     return dispatch(actionCreator.apply(undefined, arguments));
@@ -28834,12 +23023,12 @@ function bindActionCreators(actionCreators, dispatch) {
   }
   return boundActionCreators;
 }
-},{}],259:[function(require,module,exports){
+},{}],203:[function(require,module,exports){
 (function (process){
 'use strict';
 
 exports.__esModule = true;
-exports["default"] = combineReducers;
+exports['default'] = combineReducers;
 
 var _createStore = require('./createStore');
 
@@ -28851,29 +23040,33 @@ var _warning = require('./utils/warning');
 
 var _warning2 = _interopRequireDefault(_warning);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 function getUndefinedStateErrorMessage(key, action) {
   var actionType = action && action.type;
   var actionName = actionType && '"' + actionType.toString() + '"' || 'an action';
 
-  return 'Reducer "' + key + '" returned undefined handling ' + actionName + '. ' + 'To ignore an action, you must explicitly return the previous state.';
+  return 'Given action ' + actionName + ', reducer "' + key + '" returned undefined. ' + 'To ignore an action, you must explicitly return the previous state. ' + 'If you want this reducer to hold no value, you can return null instead of undefined.';
 }
 
-function getUnexpectedStateShapeWarningMessage(inputState, reducers, action) {
+function getUnexpectedStateShapeWarningMessage(inputState, reducers, action, unexpectedKeyCache) {
   var reducerKeys = Object.keys(reducers);
-  var argumentName = action && action.type === _createStore.ActionTypes.INIT ? 'initialState argument passed to createStore' : 'previous state received by the reducer';
+  var argumentName = action && action.type === _createStore.ActionTypes.INIT ? 'preloadedState argument passed to createStore' : 'previous state received by the reducer';
 
   if (reducerKeys.length === 0) {
     return 'Store does not have a valid reducer. Make sure the argument passed ' + 'to combineReducers is an object whose values are reducers.';
   }
 
-  if (!(0, _isPlainObject2["default"])(inputState)) {
+  if (!(0, _isPlainObject2['default'])(inputState)) {
     return 'The ' + argumentName + ' has unexpected type of "' + {}.toString.call(inputState).match(/\s([a-z|A-Z]+)/)[1] + '". Expected argument to be an object with the following ' + ('keys: "' + reducerKeys.join('", "') + '"');
   }
 
   var unexpectedKeys = Object.keys(inputState).filter(function (key) {
-    return !reducers.hasOwnProperty(key);
+    return !reducers.hasOwnProperty(key) && !unexpectedKeyCache[key];
+  });
+
+  unexpectedKeys.forEach(function (key) {
+    unexpectedKeyCache[key] = true;
   });
 
   if (unexpectedKeys.length > 0) {
@@ -28881,18 +23074,18 @@ function getUnexpectedStateShapeWarningMessage(inputState, reducers, action) {
   }
 }
 
-function assertReducerSanity(reducers) {
+function assertReducerShape(reducers) {
   Object.keys(reducers).forEach(function (key) {
     var reducer = reducers[key];
     var initialState = reducer(undefined, { type: _createStore.ActionTypes.INIT });
 
     if (typeof initialState === 'undefined') {
-      throw new Error('Reducer "' + key + '" returned undefined during initialization. ' + 'If the state passed to the reducer is undefined, you must ' + 'explicitly return the initial state. The initial state may ' + 'not be undefined.');
+      throw new Error('Reducer "' + key + '" returned undefined during initialization. ' + 'If the state passed to the reducer is undefined, you must ' + 'explicitly return the initial state. The initial state may ' + 'not be undefined. If you don\'t want to set a value for this reducer, ' + 'you can use null instead of undefined.');
     }
 
     var type = '@@redux/PROBE_UNKNOWN_ACTION_' + Math.random().toString(36).substring(7).split('').join('.');
     if (typeof reducer(undefined, { type: type }) === 'undefined') {
-      throw new Error('Reducer "' + key + '" returned undefined when probed with a random type. ' + ('Don\'t try to handle ' + _createStore.ActionTypes.INIT + ' or other actions in "redux/*" ') + 'namespace. They are considered private. Instead, you must return the ' + 'current state for any unknown actions, unless it is undefined, ' + 'in which case you must return the initial state, regardless of the ' + 'action type. The initial state may not be undefined.');
+      throw new Error('Reducer "' + key + '" returned undefined when probed with a random type. ' + ('Don\'t try to handle ' + _createStore.ActionTypes.INIT + ' or other actions in "redux/*" ') + 'namespace. They are considered private. Instead, you must return the ' + 'current state for any unknown actions, unless it is undefined, ' + 'in which case you must return the initial state, regardless of the ' + 'action type. The initial state may not be undefined, but can be null.');
     }
   });
 }
@@ -28918,94 +23111,117 @@ function combineReducers(reducers) {
   var finalReducers = {};
   for (var i = 0; i < reducerKeys.length; i++) {
     var key = reducerKeys[i];
+
+    if (process.env.NODE_ENV !== 'production') {
+      if (typeof reducers[key] === 'undefined') {
+        (0, _warning2['default'])('No reducer provided for key "' + key + '"');
+      }
+    }
+
     if (typeof reducers[key] === 'function') {
       finalReducers[key] = reducers[key];
     }
   }
   var finalReducerKeys = Object.keys(finalReducers);
 
-  var sanityError;
+  var unexpectedKeyCache = void 0;
+  if (process.env.NODE_ENV !== 'production') {
+    unexpectedKeyCache = {};
+  }
+
+  var shapeAssertionError = void 0;
   try {
-    assertReducerSanity(finalReducers);
+    assertReducerShape(finalReducers);
   } catch (e) {
-    sanityError = e;
+    shapeAssertionError = e;
   }
 
   return function combination() {
-    var state = arguments.length <= 0 || arguments[0] === undefined ? {} : arguments[0];
+    var state = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
     var action = arguments[1];
 
-    if (sanityError) {
-      throw sanityError;
+    if (shapeAssertionError) {
+      throw shapeAssertionError;
     }
 
     if (process.env.NODE_ENV !== 'production') {
-      var warningMessage = getUnexpectedStateShapeWarningMessage(state, finalReducers, action);
+      var warningMessage = getUnexpectedStateShapeWarningMessage(state, finalReducers, action, unexpectedKeyCache);
       if (warningMessage) {
-        (0, _warning2["default"])(warningMessage);
+        (0, _warning2['default'])(warningMessage);
       }
     }
 
     var hasChanged = false;
     var nextState = {};
-    for (var i = 0; i < finalReducerKeys.length; i++) {
-      var key = finalReducerKeys[i];
-      var reducer = finalReducers[key];
-      var previousStateForKey = state[key];
+    for (var _i = 0; _i < finalReducerKeys.length; _i++) {
+      var _key = finalReducerKeys[_i];
+      var reducer = finalReducers[_key];
+      var previousStateForKey = state[_key];
       var nextStateForKey = reducer(previousStateForKey, action);
       if (typeof nextStateForKey === 'undefined') {
-        var errorMessage = getUndefinedStateErrorMessage(key, action);
+        var errorMessage = getUndefinedStateErrorMessage(_key, action);
         throw new Error(errorMessage);
       }
-      nextState[key] = nextStateForKey;
+      nextState[_key] = nextStateForKey;
       hasChanged = hasChanged || nextStateForKey !== previousStateForKey;
     }
     return hasChanged ? nextState : state;
   };
 }
 }).call(this,require('_process'))
-},{"./createStore":261,"./utils/warning":263,"_process":114,"lodash/isPlainObject":112}],260:[function(require,module,exports){
+},{"./createStore":205,"./utils/warning":207,"_process":43,"lodash/isPlainObject":42}],204:[function(require,module,exports){
 "use strict";
 
 exports.__esModule = true;
 exports["default"] = compose;
 /**
- * Composes single-argument functions from right to left.
+ * Composes single-argument functions from right to left. The rightmost
+ * function can take multiple arguments as it provides the signature for
+ * the resulting composite function.
  *
  * @param {...Function} funcs The functions to compose.
- * @returns {Function} A function obtained by composing functions from right to
- * left. For example, compose(f, g, h) is identical to arg => f(g(h(arg))).
+ * @returns {Function} A function obtained by composing the argument functions
+ * from right to left. For example, compose(f, g, h) is identical to doing
+ * (...args) => f(g(h(...args))).
  */
+
 function compose() {
   for (var _len = arguments.length, funcs = Array(_len), _key = 0; _key < _len; _key++) {
     funcs[_key] = arguments[_key];
   }
 
-  return function () {
-    if (funcs.length === 0) {
-      return arguments.length <= 0 ? undefined : arguments[0];
-    }
+  if (funcs.length === 0) {
+    return function (arg) {
+      return arg;
+    };
+  }
 
-    var last = funcs[funcs.length - 1];
-    var rest = funcs.slice(0, -1);
+  if (funcs.length === 1) {
+    return funcs[0];
+  }
 
-    return rest.reduceRight(function (composed, f) {
-      return f(composed);
-    }, last.apply(undefined, arguments));
-  };
+  return funcs.reduce(function (a, b) {
+    return function () {
+      return a(b.apply(undefined, arguments));
+    };
+  });
 }
-},{}],261:[function(require,module,exports){
+},{}],205:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
 exports.ActionTypes = undefined;
-exports["default"] = createStore;
+exports['default'] = createStore;
 
 var _isPlainObject = require('lodash/isPlainObject');
 
 var _isPlainObject2 = _interopRequireDefault(_isPlainObject);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+var _symbolObservable = require('symbol-observable');
+
+var _symbolObservable2 = _interopRequireDefault(_symbolObservable);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 /**
  * These are private action types reserved by Redux.
@@ -29015,37 +23231,38 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "d
  */
 var ActionTypes = exports.ActionTypes = {
   INIT: '@@redux/INIT'
-};
 
-/**
- * Creates a Redux store that holds the state tree.
- * The only way to change the data in the store is to call `dispatch()` on it.
- *
- * There should only be a single store in your app. To specify how different
- * parts of the state tree respond to actions, you may combine several reducers
- * into a single reducer function by using `combineReducers`.
- *
- * @param {Function} reducer A function that returns the next state tree, given
- * the current state tree and the action to handle.
- *
- * @param {any} [initialState] The initial state. You may optionally specify it
- * to hydrate the state from the server in universal apps, or to restore a
- * previously serialized user session.
- * If you use `combineReducers` to produce the root reducer function, this must be
- * an object with the same shape as `combineReducers` keys.
- *
- * @param {Function} enhancer The store enhancer. You may optionally specify it
- * to enhance the store with third-party capabilities such as middleware,
- * time travel, persistence, etc. The only store enhancer that ships with Redux
- * is `applyMiddleware()`.
- *
- * @returns {Store} A Redux store that lets you read the state, dispatch actions
- * and subscribe to changes.
- */
-function createStore(reducer, initialState, enhancer) {
-  if (typeof initialState === 'function' && typeof enhancer === 'undefined') {
-    enhancer = initialState;
-    initialState = undefined;
+  /**
+   * Creates a Redux store that holds the state tree.
+   * The only way to change the data in the store is to call `dispatch()` on it.
+   *
+   * There should only be a single store in your app. To specify how different
+   * parts of the state tree respond to actions, you may combine several reducers
+   * into a single reducer function by using `combineReducers`.
+   *
+   * @param {Function} reducer A function that returns the next state tree, given
+   * the current state tree and the action to handle.
+   *
+   * @param {any} [preloadedState] The initial state. You may optionally specify it
+   * to hydrate the state from the server in universal apps, or to restore a
+   * previously serialized user session.
+   * If you use `combineReducers` to produce the root reducer function, this must be
+   * an object with the same shape as `combineReducers` keys.
+   *
+   * @param {Function} [enhancer] The store enhancer. You may optionally specify it
+   * to enhance the store with third-party capabilities such as middleware,
+   * time travel, persistence, etc. The only store enhancer that ships with Redux
+   * is `applyMiddleware()`.
+   *
+   * @returns {Store} A Redux store that lets you read the state, dispatch actions
+   * and subscribe to changes.
+   */
+};function createStore(reducer, preloadedState, enhancer) {
+  var _ref2;
+
+  if (typeof preloadedState === 'function' && typeof enhancer === 'undefined') {
+    enhancer = preloadedState;
+    preloadedState = undefined;
   }
 
   if (typeof enhancer !== 'undefined') {
@@ -29053,7 +23270,7 @@ function createStore(reducer, initialState, enhancer) {
       throw new Error('Expected the enhancer to be a function.');
     }
 
-    return enhancer(createStore)(reducer, initialState);
+    return enhancer(createStore)(reducer, preloadedState);
   }
 
   if (typeof reducer !== 'function') {
@@ -29061,7 +23278,7 @@ function createStore(reducer, initialState, enhancer) {
   }
 
   var currentReducer = reducer;
-  var currentState = initialState;
+  var currentState = preloadedState;
   var currentListeners = [];
   var nextListeners = currentListeners;
   var isDispatching = false;
@@ -29095,7 +23312,7 @@ function createStore(reducer, initialState, enhancer) {
    * However, the next `dispatch()` call, whether nested or not, will use a more
    * recent snapshot of the subscription list.
    *
-   * 2. The listener should not expect to see all states changes, as the state
+   * 2. The listener should not expect to see all state changes, as the state
    * might have been updated multiple times during a nested `dispatch()` before
    * the listener is called. It is, however, guaranteed that all subscribers
    * registered before the `dispatch()` started will be called with the latest
@@ -29153,7 +23370,7 @@ function createStore(reducer, initialState, enhancer) {
    * return something else (for example, a Promise you can await).
    */
   function dispatch(action) {
-    if (!(0, _isPlainObject2["default"])(action)) {
+    if (!(0, _isPlainObject2['default'])(action)) {
       throw new Error('Actions must be plain objects. ' + 'Use custom middleware for async actions.');
     }
 
@@ -29174,7 +23391,8 @@ function createStore(reducer, initialState, enhancer) {
 
     var listeners = currentListeners = nextListeners;
     for (var i = 0; i < listeners.length; i++) {
-      listeners[i]();
+      var listener = listeners[i];
+      listener();
     }
 
     return action;
@@ -29199,19 +23417,58 @@ function createStore(reducer, initialState, enhancer) {
     dispatch({ type: ActionTypes.INIT });
   }
 
+  /**
+   * Interoperability point for observable/reactive libraries.
+   * @returns {observable} A minimal observable of state changes.
+   * For more information, see the observable proposal:
+   * https://github.com/tc39/proposal-observable
+   */
+  function observable() {
+    var _ref;
+
+    var outerSubscribe = subscribe;
+    return _ref = {
+      /**
+       * The minimal observable subscription method.
+       * @param {Object} observer Any object that can be used as an observer.
+       * The observer object should have a `next` method.
+       * @returns {subscription} An object with an `unsubscribe` method that can
+       * be used to unsubscribe the observable from the store, and prevent further
+       * emission of values from the observable.
+       */
+      subscribe: function subscribe(observer) {
+        if (typeof observer !== 'object') {
+          throw new TypeError('Expected the observer to be an object.');
+        }
+
+        function observeState() {
+          if (observer.next) {
+            observer.next(getState());
+          }
+        }
+
+        observeState();
+        var unsubscribe = outerSubscribe(observeState);
+        return { unsubscribe: unsubscribe };
+      }
+    }, _ref[_symbolObservable2['default']] = function () {
+      return this;
+    }, _ref;
+  }
+
   // When a store is created, an "INIT" action is dispatched so that every
   // reducer returns their initial state. This effectively populates
   // the initial state tree.
   dispatch({ type: ActionTypes.INIT });
 
-  return {
+  return _ref2 = {
     dispatch: dispatch,
     subscribe: subscribe,
     getState: getState,
     replaceReducer: replaceReducer
-  };
+  }, _ref2[_symbolObservable2['default']] = observable, _ref2;
 }
-},{"lodash/isPlainObject":112}],262:[function(require,module,exports){
+},{"lodash/isPlainObject":42,"symbol-observable":209}],206:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -29242,7 +23499,7 @@ var _warning = require('./utils/warning');
 
 var _warning2 = _interopRequireDefault(_warning);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "default": obj }; }
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 /*
 * This is a dummy function to check if the function name has been altered by minification.
@@ -29251,20 +23508,20 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { "d
 function isCrushed() {}
 
 if (process.env.NODE_ENV !== 'production' && typeof isCrushed.name === 'string' && isCrushed.name !== 'isCrushed') {
-  (0, _warning2["default"])('You are currently using minified code outside of NODE_ENV === \'production\'. ' + 'This means that you are running a slower development build of Redux. ' + 'You can use loose-envify (https://github.com/zertosh/loose-envify) for browserify ' + 'or DefinePlugin for webpack (http://stackoverflow.com/questions/30030031) ' + 'to ensure you have the correct code for your production build.');
+  (0, _warning2['default'])('You are currently using minified code outside of NODE_ENV === \'production\'. ' + 'This means that you are running a slower development build of Redux. ' + 'You can use loose-envify (https://github.com/zertosh/loose-envify) for browserify ' + 'or DefinePlugin for webpack (http://stackoverflow.com/questions/30030031) ' + 'to ensure you have the correct code for your production build.');
 }
 
-exports.createStore = _createStore2["default"];
-exports.combineReducers = _combineReducers2["default"];
-exports.bindActionCreators = _bindActionCreators2["default"];
-exports.applyMiddleware = _applyMiddleware2["default"];
-exports.compose = _compose2["default"];
+exports.createStore = _createStore2['default'];
+exports.combineReducers = _combineReducers2['default'];
+exports.bindActionCreators = _bindActionCreators2['default'];
+exports.applyMiddleware = _applyMiddleware2['default'];
+exports.compose = _compose2['default'];
 }).call(this,require('_process'))
-},{"./applyMiddleware":257,"./bindActionCreators":258,"./combineReducers":259,"./compose":260,"./createStore":261,"./utils/warning":263,"_process":114}],263:[function(require,module,exports){
+},{"./applyMiddleware":201,"./bindActionCreators":202,"./combineReducers":203,"./compose":204,"./createStore":205,"./utils/warning":207,"_process":43}],207:[function(require,module,exports){
 'use strict';
 
 exports.__esModule = true;
-exports["default"] = warning;
+exports['default'] = warning;
 /**
  * Prints a warning in the console if it exists.
  *
@@ -29278,23 +23535,20 @@ function warning(message) {
   }
   /* eslint-enable no-console */
   try {
-    // This error was thrown as a convenience so that you can use this stack
-    // to find the callsite that caused this warning to fire.
+    // This error was thrown as a convenience so that if you enable
+    // "break on all exceptions" in your console,
+    // it would pause the execution at this line.
     throw new Error(message);
     /* eslint-disable no-empty */
   } catch (e) {}
   /* eslint-enable no-empty */
 }
-},{}],264:[function(require,module,exports){
+},{}],208:[function(require,module,exports){
 "use strict";
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 
-var _slicedToArray = (function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; })();
-
-exports["default"] = function (_ref) {
+module.exports = function (_ref) {
   var data = _ref.data;
   var multiSection = _ref.multiSection;
 
@@ -29332,6 +23586,7 @@ exports["default"] = function (_ref) {
     var sectionIndex = _position[0];
     var itemIndex = _position[1];
 
+
     if (multiSection) {
       if (itemIndex === null || itemIndex === data[sectionIndex] - 1) {
         sectionIndex = nextNonEmptySectionIndex(sectionIndex);
@@ -29362,6 +23617,7 @@ exports["default"] = function (_ref) {
 
     var sectionIndex = _position2[0];
     var itemIndex = _position2[1];
+
 
     if (multiSection) {
       if (itemIndex === null || itemIndex === 0) {
@@ -29399,9 +23655,66 @@ exports["default"] = function (_ref) {
   };
 };
 
-module.exports = exports["default"];
+},{}],209:[function(require,module,exports){
+module.exports = require('./lib/index');
 
-},{}],265:[function(require,module,exports){
+},{"./lib/index":210}],210:[function(require,module,exports){
+(function (global){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _ponyfill = require('./ponyfill.js');
+
+var _ponyfill2 = _interopRequireDefault(_ponyfill);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+var root; /* global window */
+
+
+if (typeof self !== 'undefined') {
+  root = self;
+} else if (typeof window !== 'undefined') {
+  root = window;
+} else if (typeof global !== 'undefined') {
+  root = global;
+} else if (typeof module !== 'undefined') {
+  root = module;
+} else {
+  root = Function('return this')();
+}
+
+var result = (0, _ponyfill2['default'])(root);
+exports['default'] = result;
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./ponyfill.js":211}],211:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+	value: true
+});
+exports['default'] = symbolObservablePonyfill;
+function symbolObservablePonyfill(root) {
+	var result;
+	var _Symbol = root.Symbol;
+
+	if (typeof _Symbol === 'function') {
+		if (_Symbol.observable) {
+			result = _Symbol.observable;
+		} else {
+			result = _Symbol('observable');
+			_Symbol.observable = result;
+		}
+	} else {
+		result = '@@observable';
+	}
+
+	return result;
+};
+},{}],212:[function(require,module,exports){
 'use strict';
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -29432,7 +23745,7 @@ var Search = function (_React$Component) {
   function Search() {
     _classCallCheck(this, Search);
 
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(Search).call(this));
+    var _this = _possibleConstructorReturn(this, (Search.__proto__ || Object.getPrototypeOf(Search)).call(this));
 
     _this.onSuggestionsUpdateRequested = function (_ref) {
       var value = _ref.value;
@@ -29440,7 +23753,10 @@ var Search = function (_React$Component) {
       var trimmedValue = value.trim();
 
       if (trimmedValue.length > 0) {
-        _houndjs.MHSearch.fetchResultsForSearchTerm(trimmedValue, [_houndjs.MHSearch.SCOPE_MOVIE]).then(function (response) {
+        _houndjs.search.all({
+          searchTerm: trimmedValue,
+          scopes: ['movie']
+        }).then(function (response) {
           var results = response.content.map(function (pair) {
             return pair.object;
           });
@@ -29459,23 +23775,23 @@ var Search = function (_React$Component) {
     };
 
     _this.getSuggestionValue = function (suggestion) {
-      return suggestion.metadata.name;
+      return suggestion.name;
     };
 
     _this.renderSuggestion = function (suggestion) {
-      var year = undefined;
-      if (suggestion.metadata.releaseDate) {
+      var year = void 0;
+      if (suggestion.releaseDate) {
         year = _react2.default.createElement(
           'div',
           { className: 'searchResult-contributions' },
-          suggestion.metadata.releaseDate.getUTCFullYear()
+          new Date(suggestion.releaseDate).getUTCFullYear()
         );
       }
       return _react2.default.createElement(
         'a',
         { className: 'searchResult-link' },
-        _react2.default.createElement('img', { src: suggestion.primaryImage.metadata.thumbnail.url,
-          alt: suggestion.metadata.name,
+        _react2.default.createElement('img', { src: suggestion.primaryImage.object.thumbnail.url,
+          alt: suggestion.name,
           className: 'searchResult-image' }),
         _react2.default.createElement(
           'div',
@@ -29483,7 +23799,7 @@ var Search = function (_React$Component) {
           _react2.default.createElement(
             'div',
             { className: 'searchResult-name' },
-            suggestion.metadata.name
+            suggestion.name
           ),
           year
         )
@@ -29514,9 +23830,9 @@ var Search = function (_React$Component) {
   _createClass(Search, [{
     key: 'render',
     value: function render() {
-      var _state = this.state;
-      var value = _state.value;
-      var suggestions = _state.suggestions;
+      var _state = this.state,
+          value = _state.value,
+          suggestions = _state.suggestions;
 
       var inputProps = {
         value: value,
@@ -29536,8 +23852,11 @@ var Search = function (_React$Component) {
   return Search;
 }(_react2.default.Component);
 
-_houndjs.MHSDK.configure('mhclt_houndjs-example-react-search', 'TEyL0eFeCA3V0f3kZDHOe0VsWE5q2N0byzJxgYma3wVK1o12').then(function () {
+_houndjs.sdk.configure({
+  clientId: 'mhclt_houndjs-example-react-search',
+  clientSecret: 'TEyL0eFeCA3V0f3kZDHOe0VsWE5q2N0byzJxgYma3wVK1o12'
+}).then(function () {
   (0, _reactDom.render)(_react2.default.createElement(Search, null), document.getElementById('root'));
 });
 
-},{"houndjs":30,"react":256,"react-autosuggest":117,"react-dom":120}]},{},[265]);
+},{"houndjs":31,"react":200,"react-autosuggest":55,"react-dom":62}]},{},[212]);
