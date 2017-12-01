@@ -23784,7 +23784,7 @@ var Search = function (_React$Component) {
         year = _react2.default.createElement(
           'div',
           { className: 'searchResult-contributions' },
-          new Date(suggestion.releaseDate).getUTCFullYear()
+          new Date(suggestion.releaseDate * 1000).getUTCFullYear()
         );
       }
       return _react2.default.createElement(
