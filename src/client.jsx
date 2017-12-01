@@ -1,7 +1,7 @@
 import React from 'react';
 import { render } from 'react-dom';
 import Autosuggest from 'react-autosuggest';
-import { MHSearch, MHSDK } from 'houndjs';
+import { search, sdk } from 'houndjs';
 
 class Search extends React.Component {
   constructor() {
@@ -17,8 +17,10 @@ class Search extends React.Component {
     const trimmedValue = value.trim();
 
     if (trimmedValue.length > 0) {
-      MHSearch
-        .fetchResultsForSearchTerm(trimmedValue, [MHSearch.SCOPE_MOVIE])
+      search.all({
+          searchTerm: trimmedValue,
+          scopes: ['movie']
+        })
         .then(response => {
           const results = response.content.map(pair => pair.object);
 
@@ -37,27 +39,27 @@ class Search extends React.Component {
   };
 
   getSuggestionValue = (suggestion) => {
-    return suggestion.metadata.name;
+    return suggestion.name;
   };
 
   renderSuggestion = (suggestion) => {
     let year;
-    if (suggestion.metadata.releaseDate) {
+    if (suggestion.releaseDate) {
       year = (
         <div className="searchResult-contributions">
-          {suggestion.metadata.releaseDate.getUTCFullYear()}
+          {(new Date(suggestion.releaseDate)).getUTCFullYear()}
         </div>
       );
     }
     return (
       <a className="searchResult-link">
-        <img src={suggestion.primaryImage.metadata.thumbnail.url}
-            alt={suggestion.metadata.name}
+        <img src={suggestion.primaryImage.object.thumbnail.url}
+            alt={suggestion.name}
             className="searchResult-image" />
 
         <div className="searchResult-text">
           <div className="searchResult-name">
-            {suggestion.metadata.name}
+            {suggestion.name}
           </div>
           {year}
         </div>
@@ -79,7 +81,7 @@ class Search extends React.Component {
     const { value, suggestions } = this.state;
     const inputProps = {
       value,
-      onChange: this.onChange, 
+      onChange: this.onChange,
       placeholder: 'Search for a movie'
     };
 
@@ -94,7 +96,10 @@ class Search extends React.Component {
   }
 }
 
-MHSDK.configure('mhclt_houndjs-example-react-search', 'TEyL0eFeCA3V0f3kZDHOe0VsWE5q2N0byzJxgYma3wVK1o12')
+sdk.configure({
+    clientId: 'mhclt_houndjs-example-react-search',
+    clientSecret: 'TEyL0eFeCA3V0f3kZDHOe0VsWE5q2N0byzJxgYma3wVK1o12'
+  })
   .then(() => {
     render(<Search />, document.getElementById('root'));
   });

@@ -10,7 +10,7 @@
     "node": ">=5.0.0"
   },
   "dependencies": {
-    "houndjs": "^0.5.11",
+    "houndjs": "^0.7.0",
     "react": "^0.14.3",
     "react-autosuggest": "^3.5.0",
     "react-dom": "^0.14.3"
