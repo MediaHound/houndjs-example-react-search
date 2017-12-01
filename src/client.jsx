@@ -47,7 +47,7 @@ class Search extends React.Component {
     if (suggestion.releaseDate) {
       year = (
         <div className="searchResult-contributions">
-          {(new Date(suggestion.releaseDate)).getUTCFullYear()}
+          {(new Date(suggestion.releaseDate * 1000)).getUTCFullYear()}
         </div>
       );
     }
